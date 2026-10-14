@@ -376,6 +376,16 @@ def main(argv: list[str] | None = None) -> int:
     groups = [g for g in build_groups(spark, args.skip_udf) if not args.only or g[0] in args.only]
     results: list[dict[str, Any]] = []
     agreement: dict[str, Any] = {}
+    env = environment(spark, args.rows, args)
+
+    def flush() -> None:
+        """Write what is known so far, so that a timeout or a failure later on still leaves the numbers."""
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        report = {"environment": env, "agreement": agreement, "results": results}
+        (args.output_dir / "results.json").write_text(
+            json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        (args.output_dir / "results.md").write_text(render_markdown(report), encoding="utf-8")
 
     for group, _column, impls in groups:
         counts = {}
@@ -400,11 +410,9 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
             print(f"{group:22s} {name:28s} median {statistics.median(seconds):8.2f}s  {seconds}", flush=True)
+            flush()
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    report = {"environment": environment(spark, args.rows, args), "agreement": agreement, "results": results}
-    (args.output_dir / "results.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    (args.output_dir / "results.md").write_text(render_markdown(report), encoding="utf-8")
+    flush()
     print((args.output_dir / "results.md").read_text(encoding="utf-8"))
     spark.stop()
     return 0
