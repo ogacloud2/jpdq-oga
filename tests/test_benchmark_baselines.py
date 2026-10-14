@@ -41,24 +41,33 @@ def normalise(series):
     return [None if pd.isna(v) else bool(v) for v in series.tolist()]
 
 
+def as_series(values, kind):
+    """The three ways missing values reach a pandas UDF: None in object, NaN in object, <NA> in string dtype."""
+    if kind == "string":
+        return pd.Series(values, dtype="string")
+    if kind == "nan":
+        return pd.Series([float("nan") if v is None else v for v in values], dtype="object")
+    return pd.Series(values, dtype="object")
+
+
+@pytest.mark.parametrize("kind", ["none", "nan", "string"])
 @pytest.mark.parametrize("function", ["corporate_stdnum_py", "corporate_reference_py", "corporate_vectorized_py"])
-def test_corporate_baselines_agree_with_the_package(function):
+def test_corporate_baselines_agree_with_the_package(function, kind):
     values = corporate_values()
-    got = normalise(getattr(bench, function)(pd.Series(values, dtype="object")))
+    got = normalise(getattr(bench, function)(as_series(values, kind)))
     expected = [V.is_valid_corporate_number(v) for v in values]
     assert got == expected
     assert True in expected and False in expected and None in expected
 
 
-def test_local_gov_and_wareki_baselines():
+@pytest.mark.parametrize("kind", ["none", "nan", "string"])
+def test_local_gov_and_wareki_baselines(kind):
     codes = ["162019", "162010", "010006", "480000", "16201", None, "abc", "130001"]
-    assert normalise(bench.local_gov_reference_py(pd.Series(codes, dtype="object"))) == [
+    assert normalise(bench.local_gov_reference_py(as_series(codes, kind))) == [
         V.is_valid_local_gov_code(c) for c in codes
     ]
     dates = ["令和6年4月1日", "平成31年5月1日", "R6.4.1", "明治5年12月31日", None, "2024-04-01", "令和6年2月30日"]
-    assert normalise(bench.wareki_reference_py(pd.Series(dates, dtype="object"))) == [
-        W.is_valid_wareki(d) for d in dates
-    ]
+    assert normalise(bench.wareki_reference_py(as_series(dates, kind))) == [W.is_valid_wareki(d) for d in dates]
 
 
 def test_postal_reference_and_set_agree():

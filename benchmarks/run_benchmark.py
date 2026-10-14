@@ -120,6 +120,14 @@ def _bool_series(values: list[Any]) -> pd.Series:
     return pd.Series(values, dtype="boolean")
 
 
+def _strings(s: pd.Series) -> list[str | None]:
+    """Values as Python strings; missing values (``None`` / ``NaN`` / ``pd.NA``) become ``None``.
+
+    Which of those Arrow hands to a pandas UDF depends on the pandas version, so never test for ``None``.
+    """
+    return [v if isinstance(v, str) else None for v in s.tolist()]
+
+
 _BASE_WEIGHTS = np.array([1, 2] * 6, dtype=np.int64)[::-1]  # weights of the 12 base digits, left to right
 
 
@@ -127,11 +135,11 @@ def corporate_stdnum_py(s: pd.Series) -> pd.Series:
     """Existing library: python-stdnum's ``jp.cn.is_valid`` per value (``Series.map`` style)."""
     from stdnum.jp import cn
 
-    return _bool_series([None if v is None else bool(cn.is_valid(v)) for v in s.tolist()])
+    return _bool_series([None if v is None else bool(cn.is_valid(v)) for v in _strings(s)])
 
 
 def corporate_reference_py(s: pd.Series) -> pd.Series:
-    return _bool_series([V.is_valid_corporate_number(v) for v in s.tolist()])
+    return _bool_series([V.is_valid_corporate_number(v) for v in _strings(s)])
 
 
 def corporate_vectorized_py(s: pd.Series) -> pd.Series:
@@ -148,11 +156,11 @@ def corporate_vectorized_py(s: pd.Series) -> pd.Series:
 
 
 def local_gov_reference_py(s: pd.Series) -> pd.Series:
-    return _bool_series([V.is_valid_local_gov_code(v) for v in s.tolist()])
+    return _bool_series([V.is_valid_local_gov_code(v) for v in _strings(s)])
 
 
 def wareki_reference_py(s: pd.Series) -> pd.Series:
-    return _bool_series([W.is_valid_wareki(v) for v in s.tolist()])
+    return _bool_series([W.is_valid_wareki(v) for v in _strings(s)])
 
 
 def current_postal_codes() -> frozenset[str]:
@@ -164,7 +172,7 @@ def make_pandas_udfs() -> dict[str, Callable[..., Column]]:
     current = current_postal_codes()
 
     def postal_set(s: pd.Series) -> pd.Series:
-        return _bool_series([None if v is None else v in current for v in s.tolist()])
+        return _bool_series([None if v is None else v in current for v in _strings(s)])
 
     return {
         "corporate_stdnum": pandas_udf("boolean")(corporate_stdnum_py),
