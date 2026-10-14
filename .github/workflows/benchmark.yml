@@ -1,0 +1,52 @@
+name: Benchmark
+
+# Manual: measures the Spark-native checks against pandas-UDF baselines and uploads the numbers.
+# Results are recorded in BENCHMARK.md together with the runner description below.
+on:
+  workflow_dispatch:
+    inputs:
+      rows:
+        description: Number of synthetic rows
+        default: "10000000"
+      repeats:
+        description: Timed passes per implementation (median is reported)
+        default: "3"
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BENCH_DRIVER_MEMORY: 4g
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install
+        run: uv sync --extra benchmark --python 3.11
+      - name: Describe the runner
+        run: |
+          mkdir -p benchmark-output
+          {
+            echo "## Runner"
+            lscpu | grep -E 'Model name|^CPU\(s\)|Thread|MHz' || true
+            free -m
+            java -version 2>&1
+            uname -a
+          } | tee benchmark-output/runner.txt
+      - name: Run benchmark
+        run: >
+          uv run python benchmarks/run_benchmark.py
+          --rows ${{ inputs.rows }} --repeats ${{ inputs.repeats }} --output-dir benchmark-output
+      - name: Summary
+        if: always()
+        run: |
+          cat benchmark-output/results.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-output
+          path: benchmark-output

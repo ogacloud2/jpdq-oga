@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+spark-warehouse/
+metastore_db/
+derby.log
+.idea/
+.vscode/
+
+# Japan Post source data is downloaded by the user, never committed
+utf_ken_all.zip
+ken_all.zip
+*.CSV
+coverage
+.coverage*

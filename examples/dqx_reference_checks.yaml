@@ -1,0 +1,52 @@
+# Reference-data checks: existence and consistency against time-aware tables.
+#
+# 1. build the reference tables once (and fold in a new snapshot whenever you refresh):
+#      python -m jpdq_oga.cli postal --zip utf_ken_all.zip --snapshot-date 2026-10-01 \
+#          --output-table main.reference.postal_codes
+# 2. run the checks:
+#      import yaml
+#      from jpdq_oga import get_japan_checks
+#      checks = yaml.safe_load(open("examples/dqx_reference_checks.yaml", encoding="utf-8"))
+#      engine.apply_checks_by_metadata(df, checks, custom_check_functions=get_japan_checks())
+#
+# The reference can be a table (ref_table), a Delta/Parquet location such as a Volume (ref_path),
+# or a DataFrame passed as ref_dfs (ref_df_name).  `as_of` is an ISO date; `as_of_column` takes the
+# date from each row (e.g. the contract date); without either, the run date is used.
+
+- name: postal_code_exists
+  criticality: error
+  check:
+    function: is_existing_jp_postal_code
+    arguments:
+      column: postal_code
+      ref_table: main.reference.postal_codes
+      as_of_column: contract_date
+
+- name: postal_code_matches_prefecture
+  criticality: warn
+  check:
+    function: is_consistent_jp_postal_code_and_prefecture
+    arguments:
+      column: postal_code
+      prefecture_column: prefecture
+      ref_table: main.reference.postal_codes
+
+- name: postal_code_matches_city
+  criticality: warn
+  check:
+    function: is_consistent_jp_postal_code_and_city
+    arguments:
+      column: postal_code
+      city_column: city
+      ref_table: main.reference.postal_codes
+      lang: en
+
+- name: municipality_code_exists_on_contract_date
+  criticality: error
+  check:
+    function: is_existing_jp_local_gov_code
+    arguments:
+      column: municipality_code
+      ref_path: /Volumes/main/reference/local_gov_codes
+      ref_format: delta
+      as_of_column: contract_date

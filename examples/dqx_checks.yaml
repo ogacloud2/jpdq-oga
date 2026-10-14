@@ -1,0 +1,44 @@
+# Declarative DQX checks using jpdq-oga.
+#
+#   import yaml
+#   from databricks.labs.dqx.engine import DQEngine
+#   from databricks.sdk import WorkspaceClient
+#   from jpdq_oga import get_japan_checks
+#
+#   checks = yaml.safe_load(open("examples/dqx_checks.yaml", encoding="utf-8"))
+#   engine = DQEngine(WorkspaceClient())
+#   good, bad = engine.apply_checks_by_metadata_and_split(
+#       df, checks, custom_check_functions=get_japan_checks()
+#   )
+#
+# NULL values pass; add is_not_null for mandatory columns.
+# `lang` is "ja" (default) or "en".
+
+- name: corporate_number_valid
+  criticality: error
+  check:
+    function: is_valid_jp_corporate_number
+    arguments:
+      column: corporate_number
+
+- name: invoice_number_valid
+  criticality: error
+  check:
+    function: is_valid_jp_invoice_number
+    arguments:
+      column: invoice_registration_number
+      lang: en
+
+- name: contract_date_valid_wareki
+  criticality: error
+  check:
+    function: is_valid_jp_wareki_date
+    arguments:
+      column: contract_date
+
+- name: municipality_code_valid
+  criticality: error
+  check:
+    function: is_valid_jp_local_gov_code
+    arguments:
+      column: municipality_code
