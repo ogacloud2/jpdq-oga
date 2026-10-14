@@ -192,6 +192,12 @@ def not_violation(problem: Column, source: Column) -> Column:
     return F.when(source.isNotNull(), problem.isNull())
 
 
+def _no_errors() -> Column:
+    """DQX leaves ``_errors`` NULL (not an empty array) for a row without violations."""
+    errors = F.col("_errors")
+    return errors.isNull() | (F.size(errors) == 0)
+
+
 def tally(df: DataFrame, column: str) -> tuple[int, int, int]:
     row = df.agg(
         F.count(F.when(F.col(column), 1)).alias("t"),
@@ -306,7 +312,7 @@ def build_groups(
         out = engine.apply_checks_by_metadata(
             df.select("postal_code"), checks, custom_check_functions=get_japan_checks(), ref_dfs={"postal": ref}
         )
-        return out.select(F.when(col("postal_code").isNotNull(), F.size(F.col("_errors")) == 0).alias("r"))
+        return out.select(F.when(col("postal_code").isNotNull(), _no_errors()).alias("r"))
 
     postal_impls: dict[str, Callable[[DataFrame], DataFrame]] = {"native_dqx_broadcast_join": postal_native}
     if not skip_udf:
@@ -326,7 +332,7 @@ def build_groups(
 
     def dqx_rows(df: DataFrame) -> DataFrame:
         out = engine.apply_checks_by_metadata(df, row_checks, custom_check_functions=get_japan_checks())
-        return out.select(F.when(col("corporate_number").isNotNull(), F.size(F.col("_errors")) == 0).alias("r"))
+        return out.select(F.when(col("corporate_number").isNotNull(), _no_errors()).alias("r"))
 
     groups.append(("dqx_four_row_rules", "corporate_number", {"native_dqx_apply_checks": dqx_rows}))
     return groups
