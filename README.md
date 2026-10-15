@@ -158,7 +158,8 @@ GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処�
 画面の操作を 1 つずつ書いた手順書は **[docs/databricks-free-edition.md](docs/databricks-free-edition.md)** です。
 ここでは全体の流れを説明します。所要時間は、慣れていなければ 30〜60 分です。
 
-Free Edition（サーバーレス）の実機で、部 0・A・B・C の動作を確認済みです（部 D は未確認）。
+Free Edition（サーバーレス）の実機で、部 0・A・B・C・D の動作を確認済みです。総務省の Excel は、Free Edition から自動で取得できます。
+日本郵便の ZIP の自動取得は未確認で、その場合はブラウザで取得して手でアップロードします。
 
 ### 用意するもの
 
