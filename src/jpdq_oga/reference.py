@@ -139,6 +139,12 @@ def valid_at(entry: Column, as_of: Column) -> Column:
     )
 
 
+def columns_valid_at(as_of: Column) -> Column:
+    """Row filter for a reference table: ``valid_from`` / ``valid_to`` columns in force on ``as_of``."""
+    valid_from, valid_to = F.col(VALID_FROM), F.col(VALID_TO)
+    return (valid_from.isNull() | (valid_from <= as_of)) & (valid_to.isNull() | (as_of < valid_to))
+
+
 def entries_by_key(ref: DataFrame, key: str, fields: tuple[str, ...], key_alias: str, entries_alias: str) -> DataFrame:
     """One row per key with an array of its (field..., valid_from, valid_to) entries.
 

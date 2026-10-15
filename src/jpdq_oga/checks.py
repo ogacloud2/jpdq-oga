@@ -42,15 +42,25 @@ def _problem_condition(
     """``make_condition`` that fails when ``problem_expr`` yields a reason code."""
     M.validate_language(lang)
     col_str_norm, _, col_expr = get_normalized_column_and_expr(column)
-    problem = problem_expr(col_expr)
-    branches = [
-        (problem == code, F.concat(F.lit(prefix), col_expr.cast("string"), F.lit(suffix)))
-        for code, (prefix, suffix) in M.TEMPLATES[kind][lang].items()
-    ]
-    message = F.when(*branches[0])
-    for condition, text in branches[1:]:
-        message = message.when(condition, text)
-    return make_condition(problem.isNotNull(), message, f"{col_str_norm}_{alias_suffix}")
+    templates = M.TEMPLATES[kind][lang].items()
+
+    def message_of(problem: Column) -> Column:
+        """The message for a reason code; NULL (no branch matches) when there is no violation."""
+        branches = [
+            (problem == code, F.concat(F.lit(prefix), col_expr.cast("string"), F.lit(suffix)))
+            for code, (prefix, suffix) in templates
+        ]
+        message = F.when(*branches[0])
+        for condition, text in branches[1:]:
+            message = message.when(condition, text)
+        return message
+
+    # The reason code can be expensive (和暦 parses the string).  Spark has no ``let``, so bind it through
+    # a one-element array and a lambda: it is then evaluated once per use of the result column instead of
+    # once for the condition plus once per message branch.  ``condition=True`` because the message is
+    # already NULL when there is no violation.
+    message = F.transform(F.array(problem_expr(col_expr)), message_of)[0]
+    return make_condition(F.lit(True), message, f"{col_str_norm}_{alias_suffix}")
 
 
 @register_rule("row")
@@ -142,9 +152,25 @@ def _reference_rule(
 
     def apply(df: DataFrame, spark: SparkSession, ref_dfs: dict[str, DataFrame]) -> DataFrame:
         ref = R.load_reference(spark, ref_dfs, ref_df_name, ref_table, ref_path, ref_format, required_columns)
-        by_key = R.entries_by_key(ref, key_column, entries_fields, ref_key, entries_col)
-        in_force = F.filter(F.col(entries_col), lambda x: R.valid_at(x, R.as_of_expression(as_of_date, as_of_col_expr)))
-        found = F.coalesce(F.size(in_force) > 0, F.lit(False))
+        field = mode.split(":", 1)[1] if ":" in mode else None
+        if as_of_col_expr is None:
+            # One date for every row: keep only the rows in force on it, then a plain equi-join.
+            in_force_ref = ref.filter(R.columns_valid_at(R.as_of_expression(as_of_date, None)))
+            if field is None:
+                by_key = in_force_ref.select(F.col(key_column).alias(ref_key)).distinct()
+                found = F.col(ref_key).isNotNull()
+            else:
+                by_key = in_force_ref.groupBy(F.col(key_column).alias(ref_key)).agg(
+                    F.collect_set(F.col(field)).alias(entries_col)
+                )
+                found = F.col(entries_col).isNotNull()
+        else:
+            # A date per row: join on the key and test each entry's validity period against the row's date.
+            by_key = R.entries_by_key(ref, key_column, entries_fields, ref_key, entries_col)
+            in_force = F.filter(
+                F.col(entries_col), lambda x: R.valid_at(x, R.as_of_expression(as_of_date, as_of_col_expr))
+            )
+            found = F.coalesce(F.size(in_force) > 0, F.lit(False))
         key = F.col(row_key)
         if mode == "exists":
             reason = (
@@ -153,9 +179,11 @@ def _reference_rule(
                 .when(~found, F.lit(R.NOT_FOUND))
             )
         else:
-            assert other_expr is not None
-            field = mode.split(":", 1)[1]
-            agrees = F.coalesce(F.size(F.filter(in_force, lambda x: x[field] == other_expr)) > 0, F.lit(False))
+            assert other_expr is not None and field is not None
+            if as_of_col_expr is None:
+                agrees = F.coalesce(F.array_contains(F.col(entries_col), other_expr), F.lit(False))
+            else:
+                agrees = F.coalesce(F.size(F.filter(in_force, lambda x: x[field] == other_expr)) > 0, F.lit(False))
             reason = (
                 F.when(col_expr.isNull() | other_expr.isNull() | key.isNull(), F.lit(None).cast("string"))
                 .when(~found, F.lit(None).cast("string"))  # unknown postal code: the existence check reports it
@@ -163,7 +191,8 @@ def _reference_rule(
             )
         keyed = df.withColumn(row_key, key_expr(col_expr))
         joined = keyed.join(F.broadcast(by_key), F.col(row_key) == F.col(ref_key), "left")
-        return joined.withColumn(reason_col, reason).drop(ref_key, entries_col)
+        out = joined.withColumn(reason_col, reason)
+        return out.drop(ref_key) if field is None and as_of_col_expr is None else out.drop(ref_key, entries_col)
 
     values = [col_expr] if other_expr is None else [col_expr, other_expr]
     templates = M.TEMPLATES[kind][lang]

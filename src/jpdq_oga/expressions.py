@@ -85,13 +85,20 @@ def wareki_problem(column: ColumnLike) -> Column:
     ``format`` / ``pre_gregorian`` / ``not_exist`` / ``era_boundary``, judged in this order as in
     :func:`jpdq_oga.wareki.wareki_problem` (same canonicalisation pipeline).
     """
+    rx = _anchored(_wareki.PATTERN_CANONICAL)
     s = F.translate(_c(column).cast("string"), _wareki.WIDTH_FROM, _wareki.WIDTH_TO)
     s = F.regexp_replace(s, rf"[{_WS_CLASS}]+", "")
     s = F.translate(s, _wareki.KANSUJI_DIGITS_FROM, _wareki.KANSUJI_DIGITS_TO)
-    for pattern, replacement in _wareki.CANONICAL_STEPS:
-        s = F.regexp_replace(s, pattern, replacement)
 
-    rx = _anchored(_wareki.PATTERN_CANONICAL)
+    def canonicalise(x: Column) -> Column:
+        """The rewrite steps are the identity on strings that already have the canonical shape, so those
+        (the common case) skip them; ``otherwise`` is only evaluated for the rest."""
+        rewritten = x
+        for pattern, replacement in _wareki.CANONICAL_STEPS:
+            rewritten = F.regexp_replace(rewritten, pattern, replacement)
+        return F.when(x.rlike(rx), x).otherwise(rewritten)
+
+    s = F.transform(F.array(s), canonicalise)[0]
 
     # token -> era data, so that the expression does not grow with the number of eras
     first_years: dict[str, str] = {}
