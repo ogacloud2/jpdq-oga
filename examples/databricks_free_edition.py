@@ -410,5 +410,7 @@ CURRENT, REVISIONS = str(CURRENT), str(REVISIONS)
 
 codes, notes = cli.build_local_gov_codes_from_workbooks(spark, CURRENT, REVISIONS)
 codes.write.mode("overwrite").saveAsTable(CODES_TABLE)
-print(notes)
+# 1 行目の「current code list as of ...」が、現行コード表の基準日です。古い場合は WARNING も並びます。
+# 自動取得の URL は固定のため、総務省が新しい版を公開しても、古い版を取得し続けます。
+print(*notes, sep="\n")
 display(spark.table(CODES_TABLE).filter("valid_to is not null").orderBy(F.desc("valid_to")).limit(10))

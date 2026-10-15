@@ -149,6 +149,38 @@ def test_english_messages(spark, engine, postal_ref):
     assert out[0] == ["Postal code does not exist in the Japan Post data (as of 2026-01-01) (value: 1000002)"]
 
 
+def test_show_value_false_hides_the_values_of_reference_rules(spark, engine, postal_ref):
+    exists = messages(
+        run(
+            engine,
+            inputs(spark, ["p"], [("1000002",)]),
+            "is_existing_jp_postal_code",
+            postal_ref,
+            "postal",
+            column="p",
+            as_of="2026-01-01",
+            show_value=False,
+        )
+    )
+    assert exists[0] == ["郵便番号が日本郵便のデータに存在しません（基準日: 2026-01-01）（入力値: ***）"]
+
+    prefecture = messages(
+        run(
+            engine,
+            inputs(spark, ["p", "pref"], [("1000001", "大阪府")]),
+            "is_consistent_jp_postal_code_and_prefecture",
+            postal_ref,
+            "postal",
+            column="p",
+            prefecture_column="pref",
+            as_of="2026-01-01",
+            show_value=False,
+        )
+    )
+    assert len(prefecture[0]) == 1
+    assert "1000001" not in prefecture[0][0] and "大阪府" not in prefecture[0][0] and "***" in prefecture[0][0]
+
+
 # --- 整合 --------------------------------------------------------------------------------------------------
 
 

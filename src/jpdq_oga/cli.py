@@ -43,6 +43,8 @@ from . import reference as R
 from . import soumu
 
 DEFAULT_POSTAL_URL = "https://www.post.japanpost.jp/zipcode/dl/utf/zip/utf_ken_all.zip"
+SOUMU_CODES_PAGE = "https://www.soumu.go.jp/denshijiti/code.html"
+STALE_CODE_LIST_DAYS = 365
 
 
 def download(url: str, destination: Path) -> Path:
@@ -94,9 +96,13 @@ def build_local_gov_codes(
 
 
 def build_local_gov_codes_from_workbooks(
-    spark: SparkSession, current: str, revisions: str
+    spark: SparkSession, current: str, revisions: str, today: date | None = None
 ) -> tuple[DataFrame, list[str]]:
-    """``local_gov_codes`` with history from the two 総務省 workbooks; returns the table and warnings."""
+    """``local_gov_codes`` with history from the two 総務省 workbooks; returns the table and warnings.
+
+    A current code list older than ``STALE_CODE_LIST_DAYS`` adds a ``WARNING`` note: a fixed download URL keeps
+    serving the file it was written for, so a stale list is easy to miss.
+    """
     codes, as_of = soumu.read_current_codes(current)
     parsed = soumu.read_revisions(revisions)
     rows = soumu.build_history(codes, parsed.events)
@@ -104,6 +110,13 @@ def build_local_gov_codes_from_workbooks(
     notes = list(parsed.skipped)
     if as_of is not None:
         notes.insert(0, f"current code list as of {as_of.isoformat()}; revisions from 2005-04-01")
+        age = ((today or date.today()) - as_of).days
+        if age > STALE_CODE_LIST_DAYS:
+            notes.insert(
+                1,
+                f"WARNING: the current code list is {age} days old (as of {as_of.isoformat()}). Codes changed after "
+                f"that date are not reflected. Check {SOUMU_CODES_PAGE} for a newer list and replace both files.",
+            )
     return table, notes
 
 

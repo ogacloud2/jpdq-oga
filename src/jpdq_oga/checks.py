@@ -37,8 +37,15 @@ MAX_SHOWN_VALUE_LENGTH = 50
 A wrong column (free text, JSON) would otherwise copy whole values into every ``_errors`` entry."""
 
 
-def _shown(value: Column) -> Column:
-    """The input value as shown in a message: cast to string, cut to ``MAX_SHOWN_VALUE_LENGTH`` characters."""
+MASKED_VALUE = "***"
+
+
+def _shown(value: Column, show_value: bool = True) -> Column:
+    """The input value as shown in a message: cast to string, cut to ``MAX_SHOWN_VALUE_LENGTH`` characters.
+
+    ``show_value=False`` replaces it with ``***`` so that no input value is copied into the result columns."""
+    if not show_value:
+        return F.lit(MASKED_VALUE)
     text = value.cast("string")
     cut = F.concat(F.substring(text, 1, MAX_SHOWN_VALUE_LENGTH), F.lit("…"))
     return F.when(F.length(text) > MAX_SHOWN_VALUE_LENGTH, cut).otherwise(text)
@@ -52,6 +59,7 @@ def _problem_condition(
     alias_suffix: str,
     bind_once: bool = False,
     cases_expr: Callable[[Column], list[tuple[Column, str]]] | None = None,
+    show_value: bool = True,
 ) -> Column:
     """``make_condition`` that fails when ``problem_expr`` yields a reason code.
 
@@ -66,7 +74,7 @@ def _problem_condition(
     def message_of(problem: Column) -> Column:
         """The message for a reason code; NULL (no branch matches) when there is no violation."""
         branches = [
-            (problem == code, F.concat(F.lit(prefix), _shown(col_expr), F.lit(suffix)))
+            (problem == code, F.concat(F.lit(prefix), _shown(col_expr, show_value), F.lit(suffix)))
             for code, (prefix, suffix) in templates
         ]
         message = F.when(*branches[0])
@@ -78,7 +86,7 @@ def _problem_condition(
         # cheap checks: CASE WHEN <condition> THEN <message>; every condition is evaluated at most once
         by_code = dict(templates)
         branches = [
-            (cond, F.concat(F.lit(by_code[code][0]), _shown(col_expr), F.lit(by_code[code][1])))
+            (cond, F.concat(F.lit(by_code[code][0]), _shown(col_expr, show_value), F.lit(by_code[code][1])))
             for cond, code in cases_expr(col_expr)
         ]
         direct = F.when(*branches[0])
@@ -98,34 +106,37 @@ def _problem_condition(
 
 
 @register_rule("row")
-def is_valid_jp_corporate_number(column: str | Column, lang: str = "ja") -> Column:
+def is_valid_jp_corporate_number(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
     """Checks for a valid 13-digit 法人番号 (corporate number) including its check digit."""
     return _problem_condition(
         column, E.corporate_number_problem, "corporate_number", lang, "is_not_valid_jp_corporate_number",
         cases_expr=E.corporate_number_cases,
+        show_value=show_value,
     )  # fmt: skip
 
 
 @register_rule("row")
-def is_valid_jp_invoice_number(column: str | Column, lang: str = "ja") -> Column:
+def is_valid_jp_invoice_number(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
     """Checks for ``T`` + a valid 法人番号 (インボイス登録番号 of a corporation)."""
     return _problem_condition(
         column, E.invoice_number_problem, "invoice_number", lang, "is_not_valid_jp_invoice_number",
         cases_expr=E.invoice_number_cases,
+        show_value=show_value,
     )  # fmt: skip
 
 
 @register_rule("row")
-def is_valid_jp_local_gov_code(column: str | Column, lang: str = "ja") -> Column:
+def is_valid_jp_local_gov_code(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
     """Checks for a valid 6-digit 全国地方公共団体コード (prefecture 01-47 and check digit)."""
     return _problem_condition(
         column, E.local_gov_code_problem, "local_gov_code", lang, "is_not_valid_jp_local_gov_code",
         cases_expr=E.local_gov_code_cases,
+        show_value=show_value,
     )  # fmt: skip
 
 
 @register_rule("row")
-def is_valid_jp_wareki_date(column: str | Column, lang: str = "ja") -> Column:
+def is_valid_jp_wareki_date(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
     """Checks that a Japanese-era date string is a real date within the stated era.
 
     Detects non-existent days (令和6年2月30日), era-boundary violations (平成31年5月1日 is 令和元年,
@@ -133,14 +144,26 @@ def is_valid_jp_wareki_date(column: str | Column, lang: str = "ja") -> Column:
     Accepts 元年, kanji / fullwidth numerals and the abbreviations R/H/S/T/M.
     """
     return _problem_condition(
-        column, E.wareki_problem, "wareki_date", lang, "is_not_valid_jp_wareki_date", bind_once=True
+        column,
+        E.wareki_problem,
+        "wareki_date",
+        lang,
+        "is_not_valid_jp_wareki_date",
+        bind_once=True,
+        show_value=show_value,
     )
 
 
 # --- reference-data checks (dataset level: broadcast join against a time-aware reference table) -------
 
 
-def _message(templates: dict[str, tuple[str, ...]], reason: Column, values: list[Column], as_of_note: str) -> Column:
+def _message(
+    templates: dict[str, tuple[str, ...]],
+    reason: Column,
+    values: list[Column],
+    as_of_note: str,
+    show_value: bool = True,
+) -> Column:
     """CASE WHEN reason = <code> THEN prefix || value || middle || value || suffix ..."""
     branches = []
     for code, parts in templates.items():
@@ -148,7 +171,7 @@ def _message(templates: dict[str, tuple[str, ...]], reason: Column, values: list
         for index, part in enumerate(parts):
             pieces.append(F.lit(part.replace("{asof}", as_of_note)))
             if index < len(values) and index < len(parts) - 1:
-                pieces.append(_shown(values[index]))
+                pieces.append(_shown(values[index], show_value))
         branches.append((reason == code, F.concat(*pieces)))
     message = F.when(*branches[0])
     for condition, text in branches[1:]:
@@ -173,6 +196,7 @@ def _reference_rule(
     as_of_column: str | Column | None,
     lang: str,
     alias_suffix: str,
+    show_value: bool = True,
 ) -> tuple[Column, Callable]:
     """Shared body of the dataset-level reference checks.
 
@@ -235,7 +259,7 @@ def _reference_rule(
 
     values = [col_expr] if other_expr is None else [col_expr, other_expr]
     templates = M.TEMPLATES[kind][lang]
-    message = _message(templates, F.col(reason_col), values, M.as_of_note(lang, as_of_date))
+    message = _message(templates, F.col(reason_col), values, M.as_of_note(lang, as_of_date), show_value)
     condition = make_condition(F.col(reason_col).isNotNull(), message, f"{col_str_norm}_{alias_suffix}")
     return condition, apply
 
@@ -250,6 +274,7 @@ def is_existing_jp_postal_code(
     as_of: str | None = None,
     as_of_column: str | Column | None = None,
     lang: str = "ja",
+    show_value: bool = True,
 ) -> tuple[Column, Callable]:
     """Checks that the postal code exists in the Japan Post data *as of* a date.
 
@@ -263,7 +288,8 @@ def is_existing_jp_postal_code(
         kind="postal_code_exists", columns=[column], mode="exists", entries_fields=("prefecture", "city"),
         required_columns=R.POSTAL_COLUMNS, key_column="postal_code", key_expr=R.postal_key,
         ref_df_name=ref_df_name, ref_table=ref_table, ref_path=ref_path, ref_format=ref_format,
-        as_of=as_of, as_of_column=as_of_column, lang=lang, alias_suffix="is_not_existing_jp_postal_code",
+        as_of=as_of, as_of_column=as_of_column, lang=lang, show_value=show_value,
+        alias_suffix="is_not_existing_jp_postal_code",
     )  # fmt: skip
 
 
@@ -278,6 +304,7 @@ def is_consistent_jp_postal_code_and_prefecture(
     as_of: str | None = None,
     as_of_column: str | Column | None = None,
     lang: str = "ja",
+    show_value: bool = True,
 ) -> tuple[Column, Callable]:
     """Checks that the postal code belongs to the prefecture named in ``prefecture_column``.
 
@@ -289,7 +316,7 @@ def is_consistent_jp_postal_code_and_prefecture(
         kind="postal_code_prefecture", columns=[column, prefecture_column], mode="match:prefecture",
         entries_fields=("prefecture", "city"), required_columns=R.POSTAL_COLUMNS, key_column="postal_code",
         key_expr=R.postal_key, ref_df_name=ref_df_name, ref_table=ref_table, ref_path=ref_path,
-        ref_format=ref_format, as_of=as_of, as_of_column=as_of_column, lang=lang,
+        ref_format=ref_format, as_of=as_of, as_of_column=as_of_column, lang=lang, show_value=show_value,
         alias_suffix="is_not_consistent_jp_postal_code_and_prefecture",
     )  # fmt: skip
 
@@ -305,6 +332,7 @@ def is_consistent_jp_postal_code_and_city(
     as_of: str | None = None,
     as_of_column: str | Column | None = None,
     lang: str = "ja",
+    show_value: bool = True,
 ) -> tuple[Column, Callable]:
     """Checks that the postal code belongs to the municipality named in ``city_column``.
 
@@ -315,7 +343,7 @@ def is_consistent_jp_postal_code_and_city(
         kind="postal_code_city", columns=[column, city_column], mode="match:city",
         entries_fields=("prefecture", "city"), required_columns=R.POSTAL_COLUMNS, key_column="postal_code",
         key_expr=R.postal_key, ref_df_name=ref_df_name, ref_table=ref_table, ref_path=ref_path,
-        ref_format=ref_format, as_of=as_of, as_of_column=as_of_column, lang=lang,
+        ref_format=ref_format, as_of=as_of, as_of_column=as_of_column, lang=lang, show_value=show_value,
         alias_suffix="is_not_consistent_jp_postal_code_and_city",
     )  # fmt: skip
 
@@ -335,6 +363,7 @@ def is_existing_jp_local_gov_code(
     as_of: str | None = None,
     as_of_column: str | Column | None = None,
     lang: str = "ja",
+    show_value: bool = True,
 ) -> tuple[Column, Callable]:
     """Checks that the 全国地方公共団体コード exists *as of* a date (detects codes retired by mergers).
 
@@ -345,7 +374,8 @@ def is_existing_jp_local_gov_code(
         kind="local_gov_code_exists", columns=[column], mode="exists", entries_fields=("prefecture", "city"),
         required_columns=R.LOCAL_GOV_COLUMNS, key_column="code", key_expr=_local_gov_key,
         ref_df_name=ref_df_name, ref_table=ref_table, ref_path=ref_path, ref_format=ref_format,
-        as_of=as_of, as_of_column=as_of_column, lang=lang, alias_suffix="is_not_existing_jp_local_gov_code",
+        as_of=as_of, as_of_column=as_of_column, lang=lang, show_value=show_value,
+        alias_suffix="is_not_existing_jp_local_gov_code",
     )  # fmt: skip
 
 

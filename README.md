@@ -8,7 +8,11 @@ DQX の YAML から1行で呼べるようにします。
 > check digits, Japanese-era (和暦) dates, and postal-code / local-government-code existence and consistency
 > *as of a date* (time-aware reference data). Spark-native (no Python UDFs); Japanese or English violation messages.
 
-**状態: alpha (v0.1.0 開発中)。実装済みは下の「実装済み」表のとおりで、他はロードマップです。**
+**状態: alpha (v0.1.0)。実装済みは下の「実装済み」表のとおりで、他はロードマップです。**
+
+> **非公式です。** 本パッケージは、Databricks Labs DQX の非公式の拡張であり、Databricks 社・DQX の開発元とは関係ありません。
+> 「Databricks」「DQX」は、各社の名称です。参照データ（日本郵便・総務省）の著作権・利用条件は、各提供元に従います
+> （[データの出典と取り扱い](#データの出典と取り扱い)）。
 
 ## 設計の原則
 
@@ -243,6 +247,21 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 - Windows でファイルへ書き込む場合、Spark が winutils（`HADOOP_HOME`）を必要とします（Linux / Databricks では不要）。
 - DQX の内部関数（`make_condition` など）を使っています。**対応バージョンは databricks-labs-dqx 0.16.x** です。
 - 違反メッセージに入る入力値は、**先頭 50 文字**までです（それ以上は `…` で切ります）。
+- **メッセージには入力値が入り、DQX の結果列・隔離表に保存されます。** 値を残したくない列（生年月日の可能性がある
+  和暦など）には、`show_value: false` を指定します（メッセージは `（入力値: ***）` になります）。
+
+  ```yaml
+  - criticality: error
+    check:
+      function: is_valid_jp_wareki_date
+      arguments: {column: birth_date, show_value: false}
+  ```
+
+- **元号の表は固定です（令和まで）。** 新しい元号が決まったときは、`jpdq_oga/wareki.py` の `ERAS` に追加するまで、
+  新元号の日付は形式違反として報告されます。令和は終了日を持たないため、令和の日付はいつの年でも有効です。
+- **総務省の現行コード表が古くなっても、警告が出るだけで止まりません。** 取り込み時に、コード表の基準日が
+  365 日より前の場合は `WARNING` が表示されます。固定 URL からの自動取得は、その URL に置かれたファイルを返し続けるため、
+  総務省が新しい版を公開しても、自動では切り替わりません（[総務省のページ](https://www.soumu.go.jp/denshijiti/code.html)で確認してください）。
 - **Spark 4 では、`cp932`（旧 Shift_JIS 版の `ken_all.csv`）の読み込みに `spark.sql.legacy.javaCharsets` が必要**です。
   取得 CLI は、この設定を自動でオンにします。設定を変更できない環境では、UTF-8 版（`utf_ken_all.zip`）を使ってください。
 - 数値型の列（`int` の団体コードなど）にも指定できますが、先頭の `0` は数値では保持されないため、
@@ -252,8 +271,9 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 
 | 環境 | 状況 |
 | --- | --- |
-| ローカル Spark 3.5（ANSI モードの無効・有効） | テスト 226 件が通過（GitHub Actions でも実行） |
-| ローカル PySpark 4.0.0 | 同じテスト 226 件が通過（手元の Windows で確認。GitHub Actions のジョブも追加済み） |
+| Spark 3.5（ANSI モードの無効・有効）、Python 3.10〜3.12 | テストが通過（GitHub Actions、手元の Windows） |
+| PySpark 4.0.0 | 同じテストが通過（GitHub Actions、手元の Windows） |
+| 最新の databricks-labs-dqx（0.17 以降など） | 週 1 回、自動でテスト（[dqx-latest.yml](.github/workflows/dqx-latest.yml)）。失敗は、DQX の更新による影響の早期発見用です |
 | Databricks Free Edition（サーバーレス、Spark Connect） | 部 0・A・B・C・D の動作を実機で確認 |
 | Databricks Runtime 17 以降の汎用クラスター・ジョブ | **未確認**（Spark 4.0 でのテストは通っています） |
 | Photon、本番規模の件数 | **未確認**（GitHub Actions の 2 vCPU での計測のみ） |
@@ -288,6 +308,29 @@ python -m pytest        # JDK 17 が必要。カバレッジ 90% 未満で失敗
 ```
 
 動作確認環境: Python 3.12、PySpark 3.5.x と 4.0.0、databricks-labs-dqx 0.16.0、Temurin JDK 17。
+
+## データの出典と取り扱い
+
+参照データは同梱せず、利用者が提供元から取得します。
+
+| データ | 提供元 | 取り扱い |
+| --- | --- | --- |
+| 郵便番号（`utf_ken_all.zip`） | [日本郵便](https://www.post.japanpost.jp/zipcode/download.html) | 提供元は「郵便番号データに限っては著作権を主張しません。自由に配布していただいて結構です」としています（[docs/sources.md](docs/sources.md)） |
+| 全国地方公共団体コード（Excel 2 つ） | [総務省](https://www.soumu.go.jp/denshijiti/code.html) | サイトの著作権表記では、政府標準利用規約（第 1.0 版）の範囲で利用でき、**出典の表示**と、**加工した場合はその旨の明記**を求めています。このパッケージが作る参照表は、総務省のデータを**加工したもの**です。外部に公開・配布するときは、「出典: 総務省『全国地方公共団体コード』を加工して作成」のように明記してください |
+
+- 取得は、**スナップショットごとに 1 回**にとどめ、毎回のジョブで取得しないでください（取得した表を使い回します）。
+- 日本郵便のサイトは、ブラウザ以外からの取得を断ることがあります。その場合は、ブラウザで取得して手でアップロードします。
+- 取得元の利用条件は変わることがあります。利用前に、各提供元の最新の表記を確認してください。
+
+## バージョンの固定
+
+`main` の ZIP は、取得するたびに内容が変わります。再現性が必要な場合は、**リリースの版を指定**してください。
+
+| 版 | ZIP の URL |
+| --- | --- |
+| v0.1.0 | `https://github.com/ogacloud2/jpdq-oga/archive/refs/tags/v0.1.0.zip`（展開すると `jpdq-oga-0.1.0` フォルダ） |
+
+Databricks の Volume に置く場合は、取得した ZIP の名前を `jpdq-oga-0.1.0.zip` のまま、`%pip install` のパスに指定します。
 
 ## ライセンス
 

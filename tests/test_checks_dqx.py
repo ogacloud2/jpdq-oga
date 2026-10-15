@@ -78,6 +78,31 @@ def test_long_input_values_are_cut_in_messages(spark, engine):
     assert msgs[1] == [f"法人番号は半角数字13桁で指定してください（入力値: {'9' * MAX_SHOWN_VALUE_LENGTH}…）"]
 
 
+def test_show_value_false_keeps_input_values_out_of_the_messages(spark, engine):
+    df = string_frame(spark, ["1234567890123", "870011000590"])
+    out = engine.apply_checks_by_metadata(
+        df,
+        [rule("is_valid_jp_corporate_number", show_value=False)],
+        custom_check_functions=jpdq_oga.get_japan_checks(),
+    )
+    msgs = messages_by_row(out)
+    assert msgs[0] == ["法人番号のチェックディジットが一致しません（入力値: ***）"]
+    assert msgs[1] == ["法人番号は半角数字13桁で指定してください（入力値: ***）"]
+    # the default is unchanged: the value is shown
+    shown = engine.apply_checks_by_metadata(
+        df, [rule("is_valid_jp_corporate_number")], custom_check_functions=jpdq_oga.get_japan_checks()
+    )
+    assert "1234567890123" in messages_by_row(shown)[0][0]
+
+
+def test_show_value_false_for_wareki(spark, engine):
+    wareki = string_frame(spark, ["令和6年4月31日"])
+    out = engine.apply_checks_by_metadata(
+        wareki, [rule("is_valid_jp_wareki_date", show_value=False)], custom_check_functions=jpdq_oga.get_japan_checks()
+    )
+    assert messages_by_row(out)[0] == ["存在しない日付です（入力値: ***）"]
+
+
 def test_invoice_and_local_gov_code(spark, engine):
     inv = string_frame(spark, ["T8700110005901", "T1700110005901", "8700110005901"])
     out = engine.apply_checks_by_metadata(

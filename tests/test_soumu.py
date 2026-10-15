@@ -240,7 +240,9 @@ def test_history_drives_the_existence_check(spark, tmp_path):
 
     make_current(tmp_path / "c.xlsx")
     make_revisions(tmp_path / "r.xlsx")
-    table, notes = cli.build_local_gov_codes_from_workbooks(spark, str(tmp_path / "c.xlsx"), str(tmp_path / "r.xlsx"))
+    table, notes = cli.build_local_gov_codes_from_workbooks(
+        spark, str(tmp_path / "c.xlsx"), str(tmp_path / "r.xlsx"), today=dt.date(2024, 6, 1)
+    )
     assert notes == ["current code list as of 2024-01-01; revisions from 2005-04-01"]
     assert sorted(table.columns) == sorted(R.LOCAL_GOV_COLUMNS)
 
@@ -260,6 +262,26 @@ def test_history_drives_the_existence_check(spark, tmp_path):
 
     assert flagged("2016-10-09") == {"044237": False, "042161": True}  # 富谷町 still exists, 富谷市 does not yet
     assert flagged("2016-10-10") == {"044237": True, "042161": False}  # the merger day: roles swap
+
+
+@pytest.mark.spark
+@pytest.mark.parametrize(
+    ("today", "stale"),
+    # 2024 is a leap year: 2024-01-01 -> 2024-12-31 is 365 days (not stale), -> 2025-01-01 is 366 days
+    [(dt.date(2024, 12, 31), False), (dt.date(2025, 1, 1), True), (dt.date(2026, 10, 16), True)],
+)
+def test_an_old_code_list_is_flagged(spark, tmp_path, today, stale):
+    from jpdq_oga import cli
+
+    make_current(tmp_path / "c.xlsx")  # as of 2024-01-01
+    make_revisions(tmp_path / "r.xlsx")
+    _, notes = cli.build_local_gov_codes_from_workbooks(
+        spark, str(tmp_path / "c.xlsx"), str(tmp_path / "r.xlsx"), today=today
+    )
+    warnings = [n for n in notes if n.startswith("WARNING")]
+    assert bool(warnings) is stale
+    if stale:
+        assert "as of 2024-01-01" in warnings[0] and "https://www.soumu.go.jp/denshijiti/code.html" in warnings[0]
 
 
 # --- the real files ---------------------------------------------------------------------------------------
