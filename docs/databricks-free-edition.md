@@ -267,13 +267,58 @@ jpdq-oga 0.1.0
 2. 赤く表示されたエラーの**全文**
 3. 画面に出ているカタログ名とスキーマ名（0-1 の結果）
 
-## 10. 後片付け
+## 10. GitHub の更新版を Free Edition に反映する
+
+このリポジトリが更新されたときに、Free Edition の手元の環境へ反映する手順です。
+**何が変わったか**（コミットの変更ファイル）で、行う手順が変わります。
+
+| 変わったもの | 行う手順 |
+| --- | --- |
+| `examples/databricks_free_edition.py`（ノートブック）だけ | 10-1 だけ |
+| `src/` 以下（`jpdq-oga` 本体）も変わった | 10-1 に加えて 10-2 |
+| `docs/` や `README.md` だけ | 不要（GitHub 上で読むだけです） |
+
+### 10-1. ノートブックを入れ替える
+1. ブラウザで GitHub のリポジトリ（`https://github.com/ogacloud2/jpdq-oga`）を開きます。
+   非公開の場合は、`ogacloud2` でログインした状態にします。
+2. `examples` → `databricks_free_edition.py` をクリックし、右上の **Download raw file**（下向き矢印）で保存します。
+   ファイル名が `databricks_free_edition (1).py` のように変わっていたら、`(1)` を消して名前を直します。
+3. Databricks の **Workspace** で、古い `databricks_free_edition` の名前を `databricks_free_edition_old` に変えます
+   （︙ → **Rename**）。同名の取り込みでどうなるかが画面によって違うため、名前を変えてから取り込むと確実です。
+4. 4-1 と同じ方法で、保存した `databricks_free_edition.py` を **Import** します。
+5. 新しい `databricks_free_edition` を開き、右上から **Serverless** に接続します。
+6. 新しいノートブックは Python の状態が空なので、**0-4（インストール）と 0-5（再起動）を先に実行**します。
+   Volume の ZIP と、作成済みの表（`postal_codes` など）は、そのまま残っています。
+7. 続けて、見たいセルを上から実行します。
+
+### 10-2. `jpdq-oga` 本体も更新する場合
+1. GitHub の **Code → Download ZIP** で、最新の `jpdq-oga-main.zip` を保存します（展開しません）。
+2. **Catalog** → workspace → default → Volumes → **jpdq** を開き、古い `jpdq-oga-main.zip` を削除します（︙ → Delete）。
+3. **Upload to this volume** で、新しい `jpdq-oga-main.zip` をアップロードします。
+4. ノートブックの 0-4 のセルを、次のように書き換えて実行します
+   （バージョン番号が同じままだと入れ直されないことがあるため、`--force-reinstall` を付けます）。
+
+   ```python
+   %pip install --force-reinstall --no-deps /Volumes/workspace/default/jpdq/jpdq-oga-main.zip
+   ```
+5. 続けて 0-5 の `dbutils.library.restartPython()` を実行します。
+6. 確認します。
+
+   ```python
+   import jpdq_oga
+   print(jpdq_oga.__version__)
+   ```
+
+> **ノートブックを取り込み直さずに済ませたい場合**: 変更されたセルの内容を GitHub のファイルで確認し、
+> 今のノートブックのセルに貼り付けても同じです。
+
+## 11. 後片付け
 
 - 作った表を消す: 左の **Catalog** で `workspace.default.postal_codes` などを開き、削除します。
 - Volume `jpdq` を消す: 同じ画面で `jpdq` を開き、削除します（中の ZIP も消えます）。
 - Free Edition のワークスペース自体は、そのまま残しても費用はかかりません。
 
-## 11. 自分のデータで使うには
+## 12. 自分のデータで使うには
 
 - Free Edition は**非商用・学習用**です。業務データや個人情報を入れないでください。
 - DQX のチェック定義（YAML）の書き方は、[examples/dqx_checks.yaml](../examples/dqx_checks.yaml) と
