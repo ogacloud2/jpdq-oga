@@ -152,11 +152,67 @@ GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処�
 - ランナー間のばらつきが大きく（同じ実装で 1.6 倍の差）、**絶対値ではなく同一実行内の比率**として読んでください。
   Photon・クラスタでの計測はしていません。
 
-## Databricks Free Edition で試す
+## Databricks Free Edition で試す（初心者向け）
 
-初心者向けの手順書があります: **[docs/databricks-free-edition.md](docs/databricks-free-edition.md)**
-（GitHub から ZIP を取得し、Volume に置いて、ノートブック [examples/databricks_free_edition.py](examples/databricks_free_edition.py)
-を上から実行します）。Free Edition（サーバーレス）の実機で、部 0・A・B・C の動作を確認済みです（部 D は未確認）。
+プログラミングや Databricks に慣れていない方でも、**無料の Databricks Free Edition** で動かせます。
+画面の操作を 1 つずつ書いた手順書は **[docs/databricks-free-edition.md](docs/databricks-free-edition.md)** です。
+ここでは全体の流れを説明します。所要時間は、慣れていなければ 30〜60 分です。
+
+Free Edition（サーバーレス）の実機で、部 0・A・B・C の動作を確認済みです（部 D は未確認）。
+
+### 用意するもの
+
+| もの | 内容 |
+| --- | --- |
+| Databricks Free Edition のアカウント | [Free Edition の登録ページ](https://login.databricks.com/?dbx_source=docs&intent=CE_SIGN_UP)から、メール・Google・Microsoft のいずれかで無料登録します。**非商用・学習用**です。業務データや個人情報は入れないでください |
+| `jpdq-oga-main.zip` | このリポジトリの本体です。下の「ダウンロードの方法」で取得します |
+| `databricks_free_edition.py` | 手順を上から実行できるノートブックです。同じく下の方法で取得します |
+| ブラウザ | Chrome など。ファイルのダウンロードとアップロードに使います |
+
+### ダウンロードの方法（GitHub から 2 つのファイルを取る）
+
+1. **`jpdq-oga-main.zip`（本体）**
+   1. このページの右上近くにある、緑の **`<> Code`** ボタンをクリックします。
+   2. 開いたメニューの一番下にある **`Download ZIP`** をクリックします。
+   3. `jpdq-oga-main.zip` が、ブラウザの保存先（通常は「ダウンロード」フォルダ）に保存されます。
+   4. **ZIP は展開（解凍）しません。** そのまま使います。
+2. **`databricks_free_edition.py`（ノートブック）**
+   1. このページの `examples` フォルダを開き、`databricks_free_edition.py` をクリックします。
+   2. ファイル表示の右上にある **`Download raw file`**（下向き矢印のアイコン）をクリックします。
+      - 文字が表示されるだけで保存されない場合は、ページ上で右クリックして「名前を付けて保存」を選びます。
+   3. ファイル名が `databricks_free_edition (1).py` のように変わったら、`(1)` を消して名前を直します。
+
+> このリポジトリが**非公開**の間は、所有者のアカウントでログインしていないと、上の操作はできません。
+> その場合は、受け取ったファイルをそのまま使ってください。
+
+### 全体の流れ
+
+| 順 | やること | 場所 |
+| --- | --- | --- |
+| 1 | Databricks Free Edition にログインする | ブラウザ |
+| 2 | `databricks_free_edition.py` を **Import**（取り込み）し、**Serverless** に接続する | Workspace |
+| 3 | Volume（ファイル置き場）を作り、`jpdq-oga-main.zip` をアップロードする | Catalog |
+| 4 | ノートブックの「0-4」と「0-5」を実行して、インストールと再起動をする | ノートブック |
+| 5 | 部 A・部 B のセルを上から実行し、結果を確認する | ノートブック |
+| 6 | （任意）部 C・部 D で、日本郵便・総務省の実データを使う | ノートブック |
+
+各手順の画面操作・期待する表示・つまずいたときの対処は、[手順書](docs/databricks-free-edition.md) にあります。
+
+### 更新版を反映する
+このリポジトリが更新されたときの入れ替え方は、手順書の
+[「10. GitHub の更新版を Free Edition に反映する」](docs/databricks-free-edition.md) にあります。
+変わったのがノートブックだけなら、ノートブックの取り込み直し（上の「ダウンロードの方法」の 2 と、手順 2）だけで済みます。
+
+### 部 C・部 D のデータ（任意）
+ノートブックの部 C・部 D は、実データの参照表を作ります。必要なファイルが Volume に無ければ、自動で取得を試みます。
+取得できない場合は、画面の案内に従って、ブラウザで次のファイルを取得し、Volume にアップロードしてください。
+
+| 部 | ファイル | 取得先 |
+| --- | --- | --- |
+| C | `utf_ken_all.zip`（UTF-8 形式、展開しない） | [日本郵便の郵便番号データ](https://www.post.japanpost.jp/zipcode/dl/utf-zip.html) |
+| D | 都道府県コード及び市区町村コードの Excel と、その改正一覧表の Excel | [総務省の全国地方公共団体コード](https://www.soumu.go.jp/denshijiti/code.html) |
+
+ノートブックが読むファイル名は、`utf_ken_all.zip`、`codes_current.xlsx`、`codes_revisions.xlsx` です。
 
 ## 仕様と制限
 
