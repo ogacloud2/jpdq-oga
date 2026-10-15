@@ -109,6 +109,12 @@ print("使えるチェック:", sorted(jpdq_oga.get_japan_checks()))
 
 # COMMAND ----------
 
+# 自己診断: 環境（Spark・DQX・ANSI モード）を表示し、全チェックを答えの分かっている値で試します。
+# すべて期待どおりなら True。[NG] が出たら、出力をそのまま報告してください。
+jpdq_oga.selfcheck()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## A. 番号・日付のチェック
 # MAGIC
@@ -291,7 +297,9 @@ else:
     except Exception as exc:  # 取得できない環境では、手でアップロードする方法に切り替える
         print("自動取得できませんでした:", exc)
         print("ブラウザで https://www.post.japanpost.jp/zipcode/dl/utf-zip.html から utf_ken_all.zip を取得し、")
-        print("Catalog → workspace → default → Volumes → jpdq にアップロードしてから、このセルをもう一度実行してください。")
+        print(
+            "Catalog → workspace → default → Volumes → jpdq にアップロードしてから、このセルをもう一度実行してください。"
+        )
 
 print(os.listdir(VOLUME))  # `utf_ken_all.zip` が一覧に出れば OK
 

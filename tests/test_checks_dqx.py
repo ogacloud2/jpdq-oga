@@ -64,6 +64,20 @@ def test_english_messages_via_yaml_style_metadata(spark, engine):
     assert messages_by_row(out) == {0: [], 1: ["Corporate number check digit does not match (value: 1234567890123)"]}
 
 
+def test_long_input_values_are_cut_in_messages(spark, engine):
+    from jpdq_oga.checks import MAX_SHOWN_VALUE_LENGTH
+
+    just_fits = "9" * MAX_SHOWN_VALUE_LENGTH
+    too_long = "9" * 10_000
+    df = string_frame(spark, [just_fits, too_long])
+    out = engine.apply_checks_by_metadata(
+        df, [rule("is_valid_jp_corporate_number")], custom_check_functions=jpdq_oga.get_japan_checks()
+    )
+    msgs = messages_by_row(out)
+    assert msgs[0] == [f"法人番号は半角数字13桁で指定してください（入力値: {just_fits}）"]
+    assert msgs[1] == [f"法人番号は半角数字13桁で指定してください（入力値: {'9' * MAX_SHOWN_VALUE_LENGTH}…）"]
+
+
 def test_invoice_and_local_gov_code(spark, engine):
     inv = string_frame(spark, ["T8700110005901", "T1700110005901", "8700110005901"])
     out = engine.apply_checks_by_metadata(

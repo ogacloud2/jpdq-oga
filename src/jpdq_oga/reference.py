@@ -178,8 +178,24 @@ def extract_single_csv(zip_path: str | Path, destination: str | Path) -> Path:
     return target
 
 
+# Spark 4 restricts the CSV reader to these charsets unless ``spark.sql.legacy.javaCharsets`` is true.
+_SPARK_NATIVE_CHARSETS = frozenset({"iso-8859-1", "us-ascii", "utf-16", "utf-16be", "utf-16le", "utf-32", "utf-8"})
+
+
 def read_ken_all(spark: SparkSession, csv_path: str | Path, encoding: str = "utf-8") -> DataFrame:
-    """Distinct ``postal_code, local_gov_code, prefecture, city`` rows of a KEN_ALL CSV (JVM-native read)."""
+    """Distinct ``postal_code, local_gov_code, prefecture, city`` rows of a KEN_ALL CSV (JVM-native read).
+
+    ``encoding`` other than UTF-8 (e.g. ``cp932`` for the legacy Shift_JIS file) needs
+    ``spark.sql.legacy.javaCharsets`` on Spark 4; it is switched on for the session when the encoding is not
+    one Spark 4 reads natively. If the platform refuses that, a :class:`ReferenceDataError` says to use the
+    UTF-8 file (``utf_ken_all.zip``).
+    """
+    uses_legacy_charset = encoding.lower() not in _SPARK_NATIVE_CHARSETS
+    if uses_legacy_charset:
+        try:
+            spark.conf.set("spark.sql.legacy.javaCharsets", "true")
+        except Exception:  # noqa: BLE001 - a locked-down platform; the read below reports the problem
+            pass
     schema = ", ".join(f"{name} string" for name in KEN_ALL_COLUMNS)
     raw = (
         spark.read.option("encoding", encoding)
@@ -196,7 +212,16 @@ def read_ken_all(spark: SparkSession, csv_path: str | Path, encoding: str = "utf
         | F.col("prefecture").isNull()
         | F.col("city").isNull()
     )
-    if bad.limit(1).count():
+    try:
+        has_bad_rows = bool(bad.limit(1).count())
+    except Exception as exc:
+        if uses_legacy_charset and "charset" in str(exc).lower():
+            raise ReferenceDataError(
+                f"this Spark session cannot read the {encoding!r} encoding ({str(exc).splitlines()[0]}). "
+                "Use the UTF-8 file (utf_ken_all.zip) with encoding 'utf-8' instead."
+            ) from exc
+        raise
+    if has_bad_rows:
         sample = bad.limit(3).collect()
         raise ReferenceDataError(
             f"{csv_path} is not a KEN_ALL file (expected 15 columns: 5-digit local government code, "

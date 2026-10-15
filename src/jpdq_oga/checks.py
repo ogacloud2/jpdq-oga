@@ -31,6 +31,18 @@ from . import expressions as E
 from . import messages as M
 from . import reference as R
 
+MAX_SHOWN_VALUE_LENGTH = 50
+"""Longest input value echoed in a violation message; longer values are cut and end with ``…``.
+
+A wrong column (free text, JSON) would otherwise copy whole values into every ``_errors`` entry."""
+
+
+def _shown(value: Column) -> Column:
+    """The input value as shown in a message: cast to string, cut to ``MAX_SHOWN_VALUE_LENGTH`` characters."""
+    text = value.cast("string")
+    cut = F.concat(F.substring(text, 1, MAX_SHOWN_VALUE_LENGTH), F.lit("…"))
+    return F.when(F.length(text) > MAX_SHOWN_VALUE_LENGTH, cut).otherwise(text)
+
 
 def _problem_condition(
     column: str | Column,
@@ -54,7 +66,7 @@ def _problem_condition(
     def message_of(problem: Column) -> Column:
         """The message for a reason code; NULL (no branch matches) when there is no violation."""
         branches = [
-            (problem == code, F.concat(F.lit(prefix), col_expr.cast("string"), F.lit(suffix)))
+            (problem == code, F.concat(F.lit(prefix), _shown(col_expr), F.lit(suffix)))
             for code, (prefix, suffix) in templates
         ]
         message = F.when(*branches[0])
@@ -66,7 +78,7 @@ def _problem_condition(
         # cheap checks: CASE WHEN <condition> THEN <message>; every condition is evaluated at most once
         by_code = dict(templates)
         branches = [
-            (cond, F.concat(F.lit(by_code[code][0]), col_expr.cast("string"), F.lit(by_code[code][1])))
+            (cond, F.concat(F.lit(by_code[code][0]), _shown(col_expr), F.lit(by_code[code][1])))
             for cond, code in cases_expr(col_expr)
         ]
         direct = F.when(*branches[0])
@@ -136,7 +148,7 @@ def _message(templates: dict[str, tuple[str, ...]], reason: Column, values: list
         for index, part in enumerate(parts):
             pieces.append(F.lit(part.replace("{asof}", as_of_note)))
             if index < len(values) and index < len(parts) - 1:
-                pieces.append(values[index].cast("string"))
+                pieces.append(_shown(values[index]))
         branches.append((reason == code, F.concat(*pieces)))
     message = F.when(*branches[0])
     for condition, text in branches[1:]:

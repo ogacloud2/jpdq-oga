@@ -242,6 +242,30 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 - 取得 CLI の `--download` は、公式サイトがブラウザ以外を拒否する場合に失敗します。その場合はブラウザで取得し `--zip` を使ってください。
 - Windows でファイルへ書き込む場合、Spark が winutils（`HADOOP_HOME`）を必要とします（Linux / Databricks では不要）。
 - DQX の内部関数（`make_condition` など）を使っています。**対応バージョンは databricks-labs-dqx 0.16.x** です。
+- 違反メッセージに入る入力値は、**先頭 50 文字**までです（それ以上は `…` で切ります）。
+- **Spark 4 では、`cp932`（旧 Shift_JIS 版の `ken_all.csv`）の読み込みに `spark.sql.legacy.javaCharsets` が必要**です。
+  取得 CLI は、この設定を自動でオンにします。設定を変更できない環境では、UTF-8 版（`utf_ken_all.zip`）を使ってください。
+- 数値型の列（`int` の団体コードなど）にも指定できますが、先頭の `0` は数値では保持されないため、
+  `010006` は `10006` となり形式違反になります。文字列型の列で指定してください。
+
+## 動作確認の範囲
+
+| 環境 | 状況 |
+| --- | --- |
+| ローカル Spark 3.5（ANSI モードの無効・有効） | テスト 226 件が通過（GitHub Actions でも実行） |
+| ローカル PySpark 4.0.0 | 同じテスト 226 件が通過（手元の Windows で確認。GitHub Actions のジョブも追加済み） |
+| Databricks Free Edition（サーバーレス、Spark Connect） | 部 0・A・B・C・D の動作を実機で確認 |
+| Databricks Runtime 17 以降の汎用クラスター・ジョブ | **未確認**（Spark 4.0 でのテストは通っています） |
+| Photon、本番規模の件数 | **未確認**（GitHub Actions の 2 vCPU での計測のみ） |
+
+初めて使う環境では、まず次を実行してください。環境と、全チェックの動作を 1 画面で確認できます。
+`[NG]` が出た場合は、出力をそのまま報告してください。
+
+```python
+import jpdq_oga
+
+jpdq_oga.selfcheck()  # すべて期待どおりなら True
+```
 
 ## ロードマップ
 
@@ -263,7 +287,7 @@ python -m pytest        # JDK 17 が必要。カバレッジ 90% 未満で失敗
 # 実データでの確認（任意）: JPDQ_KEN_ALL_ZIP、JPDQ_SOUMU_CURRENT、JPDQ_SOUMU_REVISIONS に取得済みファイルのパスを設定
 ```
 
-動作確認環境: Python 3.12、PySpark 3.5.3、databricks-labs-dqx 0.16.0、Temurin JDK 17。
+動作確認環境: Python 3.12、PySpark 3.5.x と 4.0.0、databricks-labs-dqx 0.16.0、Temurin JDK 17。
 
 ## ライセンス
 

@@ -312,6 +312,7 @@ jpdq-oga 0.1.0
 
    ```python
    import jpdq_oga
+
    print(jpdq_oga.__version__)
    ```
 

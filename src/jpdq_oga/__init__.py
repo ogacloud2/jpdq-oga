@@ -30,10 +30,21 @@ def get_japan_checks() -> dict[str, Callable[..., Any]]:
     return dict(CHECK_FUNCTIONS)
 
 
+def selfcheck(spark: Any = None, *, quiet: bool = False) -> bool:
+    """Print the environment (Spark, DQX, ANSI mode) and run every check on known values; ``True`` when all pass.
+
+    Run this first in a new environment; paste its output into a bug report if it prints ``[NG]``.
+    """
+    from .diagnostics import selfcheck as _selfcheck
+
+    return _selfcheck(spark, quiet=quiet)
+
+
 __all__ = [
     "__version__",
     "corporate_number_check_digit",
     "get_japan_checks",
+    "selfcheck",
     "is_valid_corporate_number",
     "is_valid_invoice_number",
     "is_valid_local_gov_code",

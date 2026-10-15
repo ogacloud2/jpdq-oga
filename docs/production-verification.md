@@ -31,7 +31,7 @@
 
 | 確認項目 | 方法 | 期待する結果 |
 | --- | --- | --- |
-| DBR と Spark のバージョン | ノートブックで `spark.version` を表示 | 手元で確認済みの範囲は PySpark 3.5.x。**Spark 4.x を使う DBR（17 以降）では未確認**です（このパッケージの依存は `pyspark>=3.5,<4`、`databricks-labs-dqx>=0.16,<0.17` に固定しています） |
+| DBR と Spark のバージョン | ノートブックで `spark.version` を表示 | 手元では PySpark 3.5.x と 4.0.0 のテストが通っています。**Spark 4.x を使う DBR（17 以降）の実機では未確認**です（依存は `pyspark>=3.5,<5`、`databricks-labs-dqx>=0.16,<0.17`） |
 | ANSI モード | `spark.conf.get("spark.sql.ansi.enabled")` | `true` / `false` のどちらでも動く（手元のテストは両方で通っています）。結果を記録します |
 | ライブラリの取得経路 | 組織の方針を確認（PyPI への接続可否、社内ミラー、Volume からの取り込み） | `databricks-labs-dqx==0.16.0` と、`jpdq-oga` の ZIP または wheel を入れられる経路がある |
 | 権限 | 検証用スキーマの作成・書き込み、元データの読み取り | 検証用スキーマ（例 `dev.jpdq_check`）に書ける。元データは **読み取りのみ**で足りる |
@@ -41,7 +41,16 @@
 1. 検証用のノートブックを、対象のクラスター（またはジョブ）に接続します。
 2. [Free Edition の手順書](databricks-free-edition.md) の 5・6 と同じ方法で、`jpdq-oga-main.zip` を Volume に置き、インストールします。
    クラスターのライブラリとして入れる場合は、組織の方針に従ってください。
-3. 部 A（`examples/databricks_free_edition.py` の「A.」以下）を実行します。
+3. **自己診断を実行します。** 環境の情報と、全チェックの動作を 1 画面で確認できます。
+
+   ```python
+   import jpdq_oga
+
+   jpdq_oga.selfcheck()  # すべて期待どおりなら True
+   ```
+
+   `[NG]` の行が出た場合は、「環境」の部分と `[NG]` の行を、そのまま記録して知らせてください。
+4. 部 A（`examples/databricks_free_edition.py` の「A.」以下）を実行します。
 
 **期待する結果**（Free Edition と同じ）
 
@@ -110,7 +119,7 @@
 本番の表を直接書き換えず、**読み取って検証用スキーマに複製**します。最初は小さく始めます。
 
 ```python
-SRC = "prod.sales.customers"            # 元の表（読み取りのみ）
+SRC = "prod.sales.customers"  # 元の表（読み取りのみ）
 DST = "dev.jpdq_check.customers_sample"  # 検証用スキーマの複製先
 
 spark.table(SRC).sample(fraction=0.01, seed=42).limit(1_000_000).write.mode("overwrite").saveAsTable(DST)
