@@ -152,6 +152,12 @@ GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処�
 - ランナー間のばらつきが大きく（同じ実装で 1.6 倍の差）、**絶対値ではなく同一実行内の比率**として読んでください。
   Photon・クラスタでの計測はしていません。
 
+## Databricks Free Edition で試す
+
+初心者向けの手順書があります: **[docs/databricks-free-edition.md](docs/databricks-free-edition.md)**
+（GitHub から ZIP を取得し、Volume に置いて、ノートブック [examples/databricks_free_edition.py](examples/databricks_free_edition.py)
+を上から実行します）。Free Edition 実機では未検証です。手順書の冒頭に検証状況を記載しています。
+
 ## 仕様と制限
 
 - `NULL` は違反になりません。必須項目は DQX の `is_not_null` と組み合わせてください。
