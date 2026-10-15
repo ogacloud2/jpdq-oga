@@ -156,7 +156,7 @@ GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処�
 
 初心者向けの手順書があります: **[docs/databricks-free-edition.md](docs/databricks-free-edition.md)**
 （GitHub から ZIP を取得し、Volume に置いて、ノートブック [examples/databricks_free_edition.py](examples/databricks_free_edition.py)
-を上から実行します）。Free Edition（サーバーレス）の実機で、部 0・A・B の動作を確認済みです（部 C・D は未確認）。
+を上から実行します）。Free Edition（サーバーレス）の実機で、部 0・A・B・C の動作を確認済みです（部 D は未確認）。
 
 ## 仕様と制限
 
