@@ -50,6 +50,7 @@
    ```
 
    `[NG]` の行が出た場合は、「環境」の部分と `[NG]` の行を、そのまま記録して知らせてください。
+   手順の詳細は [selfcheck.md](selfcheck.md) にあります。
 4. 部 A（`examples/databricks_free_edition.py` の「A.」以下）を実行します。
 
 **期待する結果**（Free Edition と同じ）

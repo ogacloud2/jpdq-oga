@@ -259,7 +259,7 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 | Photon、本番規模の件数 | **未確認**（GitHub Actions の 2 vCPU での計測のみ） |
 
 初めて使う環境では、まず次を実行してください。環境と、全チェックの動作を 1 画面で確認できます。
-`[NG]` が出た場合は、出力をそのまま報告してください。
+`[NG]` が出た場合は、出力をそのまま報告してください。初心者向けの手順は [docs/selfcheck.md](docs/selfcheck.md) にあります。
 
 ```python
 import jpdq_oga
