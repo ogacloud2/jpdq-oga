@@ -1,0 +1,11 @@
+## Runner
+CPU(s):                                  2
+Model name:                              AMD EPYC 9V45 96-Core Processor
+Thread(s) per core:                      2
+               total        used        free      shared  buff/cache   available
+Mem:            7938        1245        3318          46        3733        6692
+Swap:           3071           0        3071
+openjdk version "17.0.20.1" 2026-08-18
+OpenJDK Runtime Environment Temurin-17.0.20.1+1 (build 17.0.20.1+1)
+OpenJDK 64-Bit Server VM Temurin-17.0.20.1+1 (build 17.0.20.1+1, mixed mode, sharing)
+Linux runnervm8k3b6 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux

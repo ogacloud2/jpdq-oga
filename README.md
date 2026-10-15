@@ -133,6 +133,25 @@ is_valid_wareki("令和元年4月30日")  # False（令和は5月1日から）
 Spark の列式は `jpdq_oga.expressions`（`corporate_number_problem` など。違反理由コード
 `format` / `check_digit` / `prefecture` / `not_exist` / `era_boundary` / `pre_gregorian` または `NULL` を返す）。
 
+## ベンチマーク
+
+GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処理した時間です。詳細・環境・限界は
+[BENCHMARK.md](BENCHMARK.md)、再現手順は [benchmarks/](benchmarks/README.md)。実装間の件数一致を確認したうえでの計測です。
+
+| チェック | native（本パッケージ） | pandas UDF（python-stdnum） | pandas UDF（参照実装） | pandas UDF（numpy ベクトル化） |
+| --- | ---: | ---: | ---: | ---: |
+| 法人番号 | 6.9 秒 | 29.1 秒 | 12.6 秒 | **5.2 秒** |
+| 地方公共団体コード | **2.6 秒** | — | 11.4 秒 | — |
+| 和暦 | 37.7 秒 | — | 38.6 秒 | — |
+| 郵便番号の実在性（参照12万行） | 12.0 秒 | — | **3.7 秒**（`set`） | — |
+
+- **UDF なしで DQX の YAML から使える**ことが主な価値で、速度は用途次第です。素朴な pandas UDF より 2〜4 倍速い
+  チェックもありますが、numpy で丁寧にベクトル化した pandas UDF（法人番号）や、`set` を引くだけの UDF（郵便番号）には
+  負けます。和暦は同等です。
+- DQX 経由は式の単体評価より遅くなります（DQX が行ルールの条件列を複数回評価するため）。4 ルール同時で約 5.1 万行/秒。
+- ランナー間のばらつきが大きく（同じ実装で 1.6 倍の差）、**絶対値ではなく同一実行内の比率**として読んでください。
+  Photon・クラスタでの計測はしていません。
+
 ## 仕様と制限
 
 - `NULL` は違反になりません。必須項目は DQX の `is_not_null` と組み合わせてください。
@@ -164,7 +183,7 @@ Spark の列式は `jpdq_oga.expressions`（`corporate_number_problem` など。
 | A | 法人番号・インボイス番号・地方公共団体コード | **実装済み** |
 | C | 和暦日付の実在性（元号境界、元年表記、漢数字・全角、閏年、明治6年以前の扱い） | **実装済み** |
 | B | 参照データ（郵便番号の実在性・都道府県/市区町村との整合、地方公共団体コードの実在性）、`as_of` 指定、取得 CLI | **実装済み** |
-| — | ベンチマーク（1,000万行、pandas UDF との比較） | 未着手 |
+| — | ベンチマーク（1,000万行、pandas UDF との比較） | **計測済み**（[BENCHMARK.md](BENCHMARK.md)） |
 | v0.2 | Shift_JIS に戻せない文字・半角カナ・機種依存文字の混入率、Great Expectations アダプタ | 設計のみ |
 
 ## 開発

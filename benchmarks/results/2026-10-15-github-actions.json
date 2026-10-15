@@ -1,0 +1,213 @@
+{
+  "environment": {
+    "rows": 10000000,
+    "repeats": 3,
+    "data_source": "parquet",
+    "os": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "cpu_count": 2,
+    "memory_gb": 7.8,
+    "python": "3.11.17",
+    "pyspark": "3.5.9",
+    "java": "17.0.20.1",
+    "spark_master": "local[*]",
+    "driver_memory": "4g",
+    "shuffle_partitions": "8",
+    "arrow_enabled": "true",
+    "arrow_batch_size": "10000",
+    "jpdq_oga": "0.1.0",
+    "python_stdnum": "2.2",
+    "pandas": "3.0.6",
+    "numpy": "2.4.6",
+    "databricks_labs_dqx": "0.16.0"
+  },
+  "agreement": {
+    "corporate_number": {
+      "native": {
+        "true": 941768,
+        "false": 8958165,
+        "null": 100067
+      },
+      "pandas_udf_stdnum": {
+        "true": 941768,
+        "false": 8958165,
+        "null": 100067
+      },
+      "pandas_udf_reference": {
+        "true": 941768,
+        "false": 8958165,
+        "null": 100067
+      },
+      "pandas_udf_vectorized": {
+        "true": 941768,
+        "false": 8958165,
+        "null": 100067
+      }
+    },
+    "local_gov_code": {
+      "native": {
+        "true": 969055,
+        "false": 8931059,
+        "null": 99886
+      },
+      "pandas_udf_reference": {
+        "true": 969055,
+        "false": 8931059,
+        "null": 99886
+      }
+    },
+    "wareki_date": {
+      "native": {
+        "true": 8465949,
+        "false": 1433690,
+        "null": 100361
+      },
+      "pandas_udf_reference": {
+        "true": 8465949,
+        "false": 1433690,
+        "null": 100361
+      }
+    },
+    "postal_code_exists": {
+      "native_dqx_broadcast_join": {
+        "true": 3482266,
+        "false": 6417440,
+        "null": 100294
+      },
+      "pandas_udf_set": {
+        "true": 3482266,
+        "false": 6417440,
+        "null": 100294
+      }
+    },
+    "dqx_four_row_rules": {
+      "native_dqx_apply_checks": {
+        "true": 0,
+        "false": 9899933,
+        "null": 100067
+      }
+    }
+  },
+  "results": [
+    {
+      "group": "corporate_number",
+      "implementation": "native",
+      "seconds": [
+        6.868,
+        7.04,
+        6.416
+      ],
+      "median_seconds": 6.868,
+      "rows_per_second": 1456098
+    },
+    {
+      "group": "corporate_number",
+      "implementation": "pandas_udf_stdnum",
+      "seconds": [
+        28.902,
+        29.216,
+        29.116
+      ],
+      "median_seconds": 29.116,
+      "rows_per_second": 343456
+    },
+    {
+      "group": "corporate_number",
+      "implementation": "pandas_udf_reference",
+      "seconds": [
+        12.946,
+        12.554,
+        12.587
+      ],
+      "median_seconds": 12.587,
+      "rows_per_second": 794480
+    },
+    {
+      "group": "corporate_number",
+      "implementation": "pandas_udf_vectorized",
+      "seconds": [
+        5.336,
+        5.153,
+        5.097
+      ],
+      "median_seconds": 5.153,
+      "rows_per_second": 1940484
+    },
+    {
+      "group": "local_gov_code",
+      "implementation": "native",
+      "seconds": [
+        3.016,
+        2.607,
+        2.584
+      ],
+      "median_seconds": 2.607,
+      "rows_per_second": 3835246
+    },
+    {
+      "group": "local_gov_code",
+      "implementation": "pandas_udf_reference",
+      "seconds": [
+        11.566,
+        11.412,
+        11.316
+      ],
+      "median_seconds": 11.412,
+      "rows_per_second": 876308
+    },
+    {
+      "group": "wareki_date",
+      "implementation": "native",
+      "seconds": [
+        37.695,
+        37.35,
+        38.365
+      ],
+      "median_seconds": 37.695,
+      "rows_per_second": 265290
+    },
+    {
+      "group": "wareki_date",
+      "implementation": "pandas_udf_reference",
+      "seconds": [
+        39.06,
+        38.192,
+        38.605
+      ],
+      "median_seconds": 38.605,
+      "rows_per_second": 259031
+    },
+    {
+      "group": "postal_code_exists",
+      "implementation": "native_dqx_broadcast_join",
+      "seconds": [
+        11.515,
+        12.439,
+        12.009
+      ],
+      "median_seconds": 12.009,
+      "rows_per_second": 832723
+    },
+    {
+      "group": "postal_code_exists",
+      "implementation": "pandas_udf_set",
+      "seconds": [
+        4.004,
+        3.478,
+        3.658
+      ],
+      "median_seconds": 3.658,
+      "rows_per_second": 2733855
+    },
+    {
+      "group": "dqx_four_row_rules",
+      "implementation": "native_dqx_apply_checks",
+      "seconds": [
+        194.589,
+        193.837,
+        195.169
+      ],
+      "median_seconds": 194.589,
+      "rows_per_second": 51390
+    }
+  ]
+}
