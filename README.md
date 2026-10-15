@@ -199,6 +199,10 @@ Free Edition（サーバーレス）の実機で、部 0・A・B・C・D の動�
 
 各手順の画面操作・期待する表示・つまずいたときの対処は、[手順書](docs/databricks-free-edition.md) にあります。
 
+### 業務の Databricks（本番）で使う前に
+Free Edition で確認できるのは、サンプルでの動作です。業務で使う前の検証（環境・正しさ・実データの誤検出・性能・運用）は、
+[docs/production-verification.md](docs/production-verification.md) に手順と合否の表があります。
+
 ### 更新版を反映する
 このリポジトリが更新されたときの入れ替え方は、手順書の
 [「10. GitHub の更新版を Free Edition に反映する」](docs/databricks-free-edition.md) にあります。
