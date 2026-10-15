@@ -1,0 +1,52 @@
+name: 不具合・動かない（Bug report / 環境で動かない）
+description: 期待と違う結果が出る、エラーが出る、自己診断が [NG] になる
+title: "[不具合] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。**業務データ・個人情報・認証情報は、書かないでください。**
+        環境の情報がそろっていると、原因の切り分けが早くなります。
+  - type: textarea
+    id: selfcheck
+    attributes:
+      label: 自己診断（jpdq_oga.selfcheck()）の出力の全文
+      description: |
+        `import jpdq_oga` のあとに `jpdq_oga.selfcheck()` を実行した結果を、そのまま貼ってください。
+        実行できない場合は、その旨と、表示されたエラーを書いてください。手順は docs/selfcheck.md にあります。
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 何をして、何が起きたか
+      description: 実行したコード（YAML / Python）、期待した結果、実際の結果。エラーは全文を貼ってください。
+    validations:
+      required: true
+  - type: dropdown
+    id: env
+    attributes:
+      label: 使っている環境
+      options:
+        - Databricks Free Edition（サーバーレス）
+        - Databricks（サーバーレスのノートブック・ジョブ）
+        - Databricks（汎用クラスター）
+        - Databricks（ジョブクラスター）
+        - Databricks 以外（ローカルなど）
+        - その他
+    validations:
+      required: true
+  - type: input
+    id: dbr
+    attributes:
+      label: Databricks Runtime のバージョン（分かる場合）
+      placeholder: "例: 16.4 LTS / 17.0"
+  - type: input
+    id: version
+    attributes:
+      label: jpdq-oga のバージョン
+      placeholder: "例: v0.1.0"
+    validations:
+      required: true

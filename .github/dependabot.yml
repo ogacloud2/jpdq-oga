@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # GitHub Actions のバージョンを、月 1 回確認します（非推奨の警告を早く知るため）
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

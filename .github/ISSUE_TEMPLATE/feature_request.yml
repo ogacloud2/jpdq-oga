@@ -1,0 +1,17 @@
+name: 要望・提案（Feature request）
+description: 追加してほしいチェックや、機能の提案
+title: "[要望] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 何がしたいか
+      description: どのような検証をしたいか。入力の例と、期待する判定を書いてください（業務データは書かないでください）。
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: 根拠にできる資料（あれば）
+      description: 計算式や仕様が書かれた、公式の資料の URL。このパッケージは、公的資料で確認できたものだけを実装します。
