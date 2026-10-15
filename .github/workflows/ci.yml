@@ -46,3 +46,18 @@ jobs:
           uv pip install "pyspark==4.0.0"
       - name: Test on Spark 4.0
         run: uv run --no-sync pytest -q -o addopts="-p no:cacheprovider"
+
+  # Great Expectations adapter (jpdq_oga.gx_expectations): pandas and Spark engines
+  test-gx:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install
+        run: uv sync --extra dev --extra gx --python 3.12
+      - name: Test the GX adapter
+        run: uv run pytest -q -o addopts="-p no:cacheprovider" tests/test_gx.py

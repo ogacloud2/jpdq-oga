@@ -155,3 +155,12 @@
 | 検証 | BMP の全文字（サロゲートを除く約 6.3 万字）と BMP 外の例について、Spark の判定が Python の判定（`str.encode` と表の集合）と一致することを、テストで確認（Spark 3.5 と 4.0） |
 | 未確認 | 実際の対象システム（Windows のベストフィット変換、メインフレームの外字・独自拡張）での扱い。「機種依存文字」の一般的な定義には幅があり、本パッケージの定義はその 1 つである |
 | 性能 | 1 つの正規表現の文字クラス（約 4,000 の範囲）は、行ごとに範囲を順に評価し、200 万行で約 350 秒かかった。文字を 1 文字ずつ表で引く `translate`（空の置換）に替えて、約 1 秒（手元の PC、2 スレッド、200 万行・約 2,400 万文字） |
+
+## Great Expectations アダプタ
+
+| 項目 | 内容 |
+| --- | --- |
+| 対象 | Great Expectations 1.x（`great_expectations` 1.24.0 で確認）。カスタム期待は、公式の拡張方法である `ColumnMapExpectation` と `ColumnMapMetricProvider`（`column_condition_partial`）で実装している |
+| 実装 | Spark: `jpdq_oga.expressions` の式（DQX 版と同じ）。pandas: 純 Python の参照実装（`validators` / `wareki` / `charsets`）。Spark 式は、これらの参照実装と、テストで一致を確認している |
+| ライセンス | Great Expectations は Apache-2.0（<https://github.com/great-expectations/great_expectations>）。任意の依存（extra `gx`）であり、同梱・再配布はしない |
+| 未確認 | Databricks 上での実行（Spark Connect を含む）、GX 1.24 以外の版、PySpark 4.0 との組み合わせ。GX のカスタム期待の仕組みは、版によって変わりうる |

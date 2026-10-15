@@ -179,6 +179,44 @@ import jpdq_oga
 jpdq_oga.charset_profile(df, ["customer_name", "address"]).show()
 # column | non_null_rows | halfwidth_kana_rows | halfwidth_kana_rate | platform_dependent_rows | ... | any_rate
 ```
+### Great Expectations で使う
+
+DQX だけでなく、**Great Expectations（GX 1.x）**の期待（Expectation）としても使えます。pandas と Spark の両方の実行エンジンに対応し、
+Spark では、DQX 版と同じ Spark の組み込み関数の式を使います（Python UDF なし）。
+
+```bash
+pip install "jpdq-oga[gx]"   # Great Expectations 1.x と pandas
+```
+
+```python
+import great_expectations as gx
+from jpdq_oga.gx_expectations import (
+    ExpectColumnValuesToBeValidJpCorporateNumber,
+    ExpectColumnValuesToHaveNoJpHalfwidthKana,
+)
+
+context = gx.get_context(mode="ephemeral")
+asset = context.data_sources.add_spark("spark").add_dataframe_asset("customers")
+batch = asset.add_batch_definition_whole_dataframe("whole").get_batch(batch_parameters={"dataframe": df})
+
+batch.validate(ExpectColumnValuesToBeValidJpCorporateNumber(column="corporate_number", mostly=0.99))
+batch.validate(ExpectColumnValuesToHaveNoJpHalfwidthKana(column="customer_name"))
+```
+
+| 期待（Expectation） | 対応する DQX のチェック |
+| --- | --- |
+| `ExpectColumnValuesToBeValidJpCorporateNumber` | `is_valid_jp_corporate_number` |
+| `ExpectColumnValuesToBeValidJpInvoiceNumber` | `is_valid_jp_invoice_number` |
+| `ExpectColumnValuesToBeValidJpLocalGovCode` | `is_valid_jp_local_gov_code` |
+| `ExpectColumnValuesToBeValidJpWarekiDate` | `is_valid_jp_wareki_date` |
+| `ExpectColumnValuesToHaveNoJpHalfwidthKana` | `has_no_jp_halfwidth_kana` |
+| `ExpectColumnValuesToHaveNoJpPlatformDependentChars` | `has_no_jp_platform_dependent_chars` |
+| `ExpectColumnValuesToBeEncodableInJpCharset`（`charset="cp932"` または `"shift_jis"`） | `is_encodable_in_jp_charset` |
+
+- NULL は評価の対象外です（GX の仕様）。必須の列には、GX の `expect_column_values_to_not_be_null` を組み合わせてください。
+- GX は Apache-2.0 ライセンスです。**参照データを使うチェック（郵便番号・地方公共団体コードの実在性）は、このアダプタに含みません。**
+  DQX 版を使ってください。
+- 確認したのは、**GX 1.24.0**（ローカルの pandas と Spark 3.5）です。GX の版による差異や、Databricks 上での動作は、確認していません。
 ## ベンチマーク
 
 GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処理した時間です。詳細・環境・限界は
@@ -322,6 +360,7 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 | --- | --- |
 | Spark 3.5（ANSI モードの無効・有効）、Python 3.10〜3.12 | テストが通過（GitHub Actions、手元の Windows） |
 | PySpark 4.0.0 | 同じテストが通過（GitHub Actions、手元の Windows） |
+| Great Expectations 1.24.0（pandas・Spark 3.5、ローカル） | アダプタのテストが通過（GitHub Actions の `test-gx` ジョブでも実行）。**Databricks 上、PySpark 4.0 との組み合わせは未確認** |
 | 最新の databricks-labs-dqx（0.17 以降など） | 週 1 回、自動でテスト（[dqx-latest.yml](.github/workflows/dqx-latest.yml)）。失敗は、DQX の更新による影響の早期発見用です |
 | Databricks Free Edition（サーバーレス、Spark Connect） | 部 0・A・B・C・D の動作を実機で確認 |
 | Databricks Runtime 17 以降の汎用クラスター・ジョブ | **未確認**（Spark 4.0 でのテストは通っています） |
@@ -345,7 +384,7 @@ jpdq_oga.selfcheck()  # すべて期待どおりなら True
 | B | 参照データ（郵便番号の実在性・都道府県/市区町村との整合、地方公共団体コードの実在性）、`as_of` 指定、取得 CLI | **実装済み** |
 | — | ベンチマーク（1,000万行、pandas UDF との比較） | **計測済み**（[BENCHMARK.md](BENCHMARK.md)） |
 | — | 文字種（半角カナ・機種依存文字・文字コードに変換できない文字）のチェックと混入率 | **実装済み** |
-| v0.2 | Great Expectations アダプタ | 設計のみ |
+| — | Great Expectations アダプタ（行チェック 7 種。pandas・Spark） | **実装済み**（[上記](#great-expectations-で使う)） |
 
 ## 開発
 
