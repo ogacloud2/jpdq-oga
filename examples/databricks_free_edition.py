@@ -255,20 +255,34 @@ display(check_postal("2024-03-31"))
 
 # COMMAND ----------
 
-# まず、ファイルが置かれているか確認する（`utf_ken_all.zip` が一覧に出れば OK）
+# Volume に `utf_ken_all.zip` が無ければ、日本郵便のサイトから取得して置く（すでにあれば何もしない）。
+# Free Edition から取得できない場合は、ブラウザで取得して手でアップロードしてください（手順書 8-1）。
 import os
-
-print(os.listdir("/Volumes/workspace/default/jpdq"))
-
-# COMMAND ----------
-
-from datetime import date
 from pathlib import Path
 
 from jpdq_oga import cli
 
 VOLUME = Path("/Volumes/workspace/default/jpdq")  # 手順書で作った Volume
 ZIP = VOLUME / "utf_ken_all.zip"
+
+if ZIP.exists():
+    print("すでにあります:", ZIP.name)
+else:
+    try:
+        cli.download(cli.DEFAULT_POSTAL_URL, ZIP)
+        print("取得しました:", ZIP.name, ZIP.stat().st_size, "バイト")
+    except Exception as exc:  # 取得できない環境では、手でアップロードする方法に切り替える
+        print("自動取得できませんでした:", exc)
+        print("ブラウザで https://www.post.japanpost.jp/zipcode/dl/utf-zip.html から utf_ken_all.zip を取得し、")
+        print("Catalog → workspace → default → Volumes → jpdq にアップロードしてから、このセルをもう一度実行してください。")
+
+print(os.listdir(VOLUME))  # `utf_ken_all.zip` が一覧に出れば OK
+
+# COMMAND ----------
+
+from datetime import date
+
+assert ZIP.exists(), "utf_ken_all.zip がありません。1 つ上のセルの表示に従って、先にファイルを置いてください"
 TABLE = "workspace.default.postal_codes"  # 作成する表（カタログ.スキーマ.表名）
 
 # ZIP を Volume の作業フォルダに展開して読み込み、有効期間付きの表にする（初回なので valid_from は NULL）
@@ -332,14 +346,42 @@ display(
 
 # COMMAND ----------
 
+import os
 from pathlib import Path
+
+from pyspark.sql import functions as F
 
 from jpdq_oga import cli
 
 VOLUME = Path("/Volumes/workspace/default/jpdq")
-CURRENT = str(VOLUME / "codes_current.xlsx")  # 「都道府県コード及び市区町村コード」
-REVISIONS = str(VOLUME / "codes_revisions.xlsx")  # 「…の改正一覧表（平成17年4月1日以降）」
+CURRENT = VOLUME / "codes_current.xlsx"  # 「都道府県コード及び市区町村コード」
+REVISIONS = VOLUME / "codes_revisions.xlsx"  # 「…の改正一覧表（平成17年4月1日以降）」
 CODES_TABLE = "workspace.default.local_gov_codes"
+
+# Volume に Excel が無ければ、総務省のサイトから取得して置く（すでにあれば何もしない）。
+# 総務省がファイルを差し替えて URL が変わった場合や、取得できない環境では、手でアップロードしてください（手順書 8-2）。
+SOUMU = {
+    CURRENT: "https://www.soumu.go.jp/main_content/000925835.xlsx",
+    REVISIONS: "https://www.soumu.go.jp/main_content/000875488.xlsx",
+}
+missing = []
+for path, url in SOUMU.items():
+    if path.exists():
+        print("すでにあります:", path.name)
+        continue
+    try:
+        cli.download(url, path)
+        print("取得しました:", path.name, path.stat().st_size, "バイト")
+    except Exception as exc:  # 取得できない環境では、手でアップロードする方法に切り替える
+        print("自動取得できませんでした:", path.name, exc)
+        missing.append(path.name)
+print(os.listdir(VOLUME))
+assert not missing, (
+    f"{missing} がありません。https://www.soumu.go.jp/denshijiti/code.html から Excel を取得し、"
+    "ファイル名を直して Volume（jpdq）にアップロードしてから、このセルをもう一度実行してください"
+)
+
+CURRENT, REVISIONS = str(CURRENT), str(REVISIONS)
 
 codes, notes = cli.build_local_gov_codes_from_workbooks(spark, CURRENT, REVISIONS)
 codes.write.mode("overwrite").saveAsTable(CODES_TABLE)
