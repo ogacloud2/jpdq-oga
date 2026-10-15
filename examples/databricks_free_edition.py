@@ -50,8 +50,25 @@ print("OK: /Volumes/workspace/default/jpdq ができました（または、す�
 # MAGIC %md
 # MAGIC ### （画面で操作）ZIP をアップロードする
 # MAGIC
-# MAGIC 手順書の「手順 5」のとおり、Catalog の `jpdq` に `jpdq-oga-main.zip` をアップロードしてから、次のセルを実行します。
-# MAGIC **ZIP は展開せず、そのままアップロードします。**
+# MAGIC ここは**セルではなく、画面のボタンで操作**します。0-2 で作った置き場所 `jpdq` に、PC に保存してある **`jpdq-oga-main.zip`** を入れます。
+# MAGIC
+# MAGIC **準備**: PC に `jpdq-oga-main.zip` があることを確認します。無ければ、GitHub の緑の **Code** ボタン → **Download ZIP** で保存します。
+# MAGIC
+# MAGIC **展開（解凍）はしません。** ZIP のまま使います。ファイル名が `jpdq-oga-main (1).zip` のようになっていたら、`(1)` を消して名前を直します。
+# MAGIC
+# MAGIC **操作**:
+# MAGIC
+# MAGIC 1. 画面**左**のメニューで **Catalog** をクリックします。
+# MAGIC 2. 表示された一覧で、**workspace** → **default** の順にクリックします。
+# MAGIC 3. **Volumes** をクリックし、0-2 で作った **`jpdq`** をクリックします。
+# MAGIC 4. **Upload to this volume** ボタンをクリックします。
+# MAGIC 5. 開いた画面に、PC の `jpdq-oga-main.zip` を**ドラッグ＆ドロップ**します（または **browse** をクリックして選びます）。
+# MAGIC 6. **Upload** ボタンがあれば押します。完了すると、`jpdq` の中に `jpdq-oga-main.zip` が表示されます（約 0.25 MB、数秒です）。
+# MAGIC 7. このノートブックの画面に戻り、**次のセル（0-3）**を実行します。
+# MAGIC
+# MAGIC **うまくいったかの確認**: 0-3 を実行して `['jpdq-oga-main.zip']` と表示されれば成功です。`[]`（空）と出たら、まだ置けていません。1 からやり直します。
+# MAGIC
+# MAGIC 画面の表示名は、バージョンや表示言語で少し違うことがあります。似た名前のボタンを探してください。詳しい説明は、手順書の「5-4」にあります。
 
 # COMMAND ----------
 
