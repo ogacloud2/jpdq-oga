@@ -8,7 +8,7 @@ DQX の YAML から1行で呼べるようにします。
 > check digits, Japanese-era (和暦) dates, and postal-code / local-government-code existence and consistency
 > *as of a date* (time-aware reference data). Spark-native (no Python UDFs); Japanese or English violation messages.
 
-**状態: alpha (v0.1.0)。実装済みは下の「実装済み」表のとおりで、他はロードマップです。**
+**状態: alpha (v0.1.0)。提供する機能は、下の「実装済み」表のとおりです。**
 
 > **非公式です。** 本パッケージは、Databricks Labs DQX の非公式の拡張であり、Databricks 社・DQX の開発元とは関係ありません。
 > 「Databricks」「DQX」は、各社の名称です。参照データ（日本郵便・総務省）の著作権・利用条件は、各提供元に従います
@@ -375,7 +375,7 @@ import jpdq_oga
 jpdq_oga.selfcheck()  # すべて期待どおりなら True
 ```
 
-## ロードマップ
+## 実装状況
 
 | フェーズ | 内容 | 状態 |
 | --- | --- | --- |
