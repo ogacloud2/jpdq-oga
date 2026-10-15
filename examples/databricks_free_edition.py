@@ -255,6 +255,13 @@ display(check_postal("2024-03-31"))
 
 # COMMAND ----------
 
+# まず、ファイルが置かれているか確認する（`utf_ken_all.zip` が一覧に出れば OK）
+import os
+
+print(os.listdir("/Volumes/workspace/default/jpdq"))
+
+# COMMAND ----------
+
 from datetime import date
 from pathlib import Path
 
@@ -270,6 +277,17 @@ postal_codes.write.mode("overwrite").saveAsTable(TABLE)
 print(TABLE, "に", spark.table(TABLE).count(), "行を書き込みました")
 
 # COMMAND ----------
+
+# このセルだけで実行できるように、部 A と同じ取り込みと DQEngine をここでも用意する
+import yaml
+from databricks.labs.dqx.engine import DQEngine
+from databricks.sdk import WorkspaceClient
+from pyspark.sql import functions as F
+
+from jpdq_oga import get_japan_checks
+
+TABLE = "workspace.default.postal_codes"  # 上のセルで作った表
+engine = DQEngine(WorkspaceClient())
 
 real_orders = spark.createDataFrame(
     [
