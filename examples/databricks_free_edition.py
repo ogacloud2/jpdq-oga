@@ -6,7 +6,7 @@
 # MAGIC
 # MAGIC | 部 | 内容 | 追加の準備 |
 # MAGIC | --- | --- | --- |
-# MAGIC | 0 | ライブラリのインストール | GitHub の ZIP を Volume に置く |
+# MAGIC | 0 | Volume（ファイル置き場）を作り、ライブラリをインストールする | ZIP を Volume にアップロードする |
 # MAGIC | A | 番号・日付のチェック（法人番号、インボイス、団体コード、和暦） | なし |
 # MAGIC | B | 参照データのチェック（郵便番号、時点指定）。小さな表を自分で作る | なし |
 # MAGIC | C | （任意）日本郵便の実データで郵便番号チェック | `utf_ken_all.zip` を Volume に置く |
@@ -15,10 +15,63 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 0. インストール
+# MAGIC ## 0. 準備（Volume を作る → ZIP を置く → インストールする）
 # MAGIC
-# MAGIC 下のセルの `/Volumes/workspace/default/jpdq/jpdq-oga-main.zip` は、手順書の「Volume に ZIP を置く」で作った場所です。
-# MAGIC カタログ名・スキーマ名・Volume 名が違う場合は、**このパスを書き換えて**ください。
+# MAGIC 0-1 → 0-2 → （画面で ZIP をアップロード）→ 0-3 → 0-4 → 0-5 の順に、**1 セルずつ**実行します。
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 0-1. 今使っているカタログとスキーマを確認する
+# MAGIC
+# MAGIC 結果が `workspace` と `default` なら、そのまま進めます。違う名前が表示された場合は、この後の
+# MAGIC `workspace.default.jpdq` や `/Volumes/workspace/default/jpdq/...` の `workspace` と `default` を、表示された名前に書き換えてください。
+
+# COMMAND ----------
+
+row = spark.sql("SELECT current_catalog() AS catalog, current_schema() AS schema").collect()[0]
+print("catalog =", row["catalog"], " / schema =", row["schema"])
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 0-2. Volume（ZIP の置き場所）を作る
+# MAGIC
+# MAGIC 実行すると `workspace.default.jpdq` という Volume ができます（すでにあれば何もしません）。
+# MAGIC 実行後、左メニューの **Catalog** → `workspace` → `default` → **Volumes** に `jpdq` が現れます。ここに ZIP をアップロードします。
+
+# COMMAND ----------
+
+spark.sql("CREATE VOLUME IF NOT EXISTS workspace.default.jpdq")
+print("OK: /Volumes/workspace/default/jpdq ができました（または、すでにありました）")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### （画面で操作）ZIP をアップロードする
+# MAGIC
+# MAGIC 手順書の「手順 5」のとおり、Catalog の `jpdq` に `jpdq-oga-main.zip` をアップロードしてから、次のセルを実行します。
+# MAGIC **ZIP は展開せず、そのままアップロードします。**
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 0-3. ZIP が置かれたか確認する
+
+# COMMAND ----------
+
+import os
+
+print(os.listdir("/Volumes/workspace/default/jpdq"))
+# 期待する表示: ['jpdq-oga-main.zip']  （空の [] なら、ZIP のアップロードがまだです）
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### 0-4. インストールする
+# MAGIC
+# MAGIC 数十秒〜数分かかります。最後に「Note: you may need to restart the kernel」のような表示が出ても正常です。
+# MAGIC カタログ名などを変えた場合は、下の `/Volumes/...` のパスを書き換えてください。
 
 # COMMAND ----------
 
@@ -26,7 +79,8 @@
 
 # COMMAND ----------
 
-# インストールしたライブラリを読み込むために Python を再起動します（実行後、状態がリセットされます）
+# 0-5. インストールしたライブラリを読み込むために Python を再起動します（これは正常な操作です）。
+# 実行後、画面の出力が消えたり、変数が空になったりしますが、そのまま次のセルへ進んでください。
 dbutils.library.restartPython()
 
 # COMMAND ----------
