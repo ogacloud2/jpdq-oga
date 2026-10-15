@@ -15,6 +15,7 @@ from datetime import date
 from pyspark.sql import Column
 from pyspark.sql import functions as F
 
+from . import charsets as _charsets
 from . import wareki as _wareki
 from .validators import CHECK_DIGIT, ERA_BOUNDARY, FORMAT, NOT_EXIST, PRE_GREGORIAN, PREFECTURE
 
@@ -180,3 +181,46 @@ def wareki_problem(column: ColumnLike) -> Column:
     # Spark has no ``let``: binding through a one-element array and a lambda evaluates the canonical
     # string (and then its parts) once instead of once per use, which is what keeps this expression fast.
     return F.transform(F.array(s), extract)[0]
+
+
+# --- 文字種（半角カナ・機種依存文字・文字コードに変換できない文字）------------------------------------------
+
+
+def halfwidth_kana_cases(column: ColumnLike) -> list[Case]:
+    s = _c(column).cast("string")
+    return [(s.rlike(_charsets.regex_class((_charsets.HALFWIDTH_KANA_RANGE,))), _charsets.HALFWIDTH_KANA)]
+
+
+def halfwidth_kana_problem(column: ColumnLike) -> Column:
+    """``halfwidth_kana`` when the value contains a half-width katakana, else ``NULL``."""
+    return _case_when(halfwidth_kana_cases(column))
+
+
+def _remaining_after_removing(s: Column, characters: str) -> Column:
+    """``s`` without the given characters.
+
+    Spark's ``translate`` with an empty replacement deletes them through a hash lookup per character; one regular-
+    expression class of all 9,000+ encodable characters is evaluated range by range and was about 100x slower."""
+    return F.translate(s, characters, "")
+
+
+def platform_dependent_cases(column: ColumnLike) -> list[Case]:
+    s = _c(column).cast("string")
+    platform = _charsets.characters(_charsets.platform_dependent_ranges())
+    return [(F.length(_remaining_after_removing(s, platform)) < F.length(s), _charsets.PLATFORM_DEPENDENT)]
+
+
+def platform_dependent_problem(column: ColumnLike) -> Column:
+    """``platform_dependent`` when the value has a character that ``cp932`` encodes but ``shift_jis`` does not."""
+    return _case_when(platform_dependent_cases(column))
+
+
+def unencodable_cases(column: ColumnLike, charset: str = _charsets.DEFAULT_CHARSET) -> list[Case]:
+    s = _c(column).cast("string")
+    encodable = _charsets.characters(_charsets.encodable_ranges(_charsets.validate_charset(charset)))
+    return [(F.length(_remaining_after_removing(s, encodable)) > 0, _charsets.UNENCODABLE)]
+
+
+def unencodable_problem(column: ColumnLike, charset: str = _charsets.DEFAULT_CHARSET) -> Column:
+    """``unencodable`` when the value has a character ``charset`` (``cp932`` or ``shift_jis``) cannot encode."""
+    return _case_when(unencodable_cases(column, charset))

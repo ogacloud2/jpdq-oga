@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from .charsets import HALFWIDTH_KANA, PLATFORM_DEPENDENT, UNENCODABLE
 from .reference import MISMATCH, NOT_FOUND
 from .validators import CHECK_DIGIT, ERA_BOUNDARY, FORMAT, NOT_EXIST, PRE_GREGORIAN, PREFECTURE
 
@@ -83,6 +84,39 @@ TEMPLATES: dict[str, dict[str, dict[str, Template]]] = {
                 "Local government code does not exist{asof}; it may have been retired by a merger (value: ",
                 ")",
             ),
+        },
+    },
+    "halfwidth_kana": {
+        "ja": {HALFWIDTH_KANA: ("半角カナが含まれています。全角カナにしてください（入力値: ", "）")},
+        "en": {HALFWIDTH_KANA: ("Contains half-width katakana (value: ", ")")},
+    },
+    "platform_dependent": {
+        "ja": {
+            PLATFORM_DEPENDENT: (
+                "機種依存文字（丸数字・㈱・IBM拡張漢字の髙や﨑など）が含まれています（入力値: ",
+                "）",
+            )
+        },
+        "en": {
+            PLATFORM_DEPENDENT: (
+                "Contains platform-dependent characters (circled numbers, ㈱, IBM kanji such as 髙) (value: ",
+                ")",
+            )
+        },
+    },
+    "encodable_cp932": {
+        "ja": {UNENCODABLE: ("cp932（Windows の Shift_JIS）に変換できない文字が含まれています（入力値: ", "）")},
+        "en": {UNENCODABLE: ("Contains characters that cannot be encoded in cp932 (Windows Shift_JIS) (value: ", ")")},
+    },
+    "encodable_shift_jis": {
+        "ja": {
+            UNENCODABLE: ("Shift_JIS（JIS X 0208）に変換できない文字（機種依存文字を含む）があります（入力値: ", "）")
+        },
+        "en": {
+            UNENCODABLE: (
+                "Contains characters outside Shift_JIS (JIS X 0208; platform-dependent ones included) (value: ",
+                ")",
+            )
         },
     },
     "wareki_date": {

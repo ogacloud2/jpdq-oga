@@ -27,6 +27,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without the opti
 import pyspark.sql.functions as F
 from pyspark.sql import Column, DataFrame, SparkSession
 
+from . import charsets as C
 from . import expressions as E
 from . import messages as M
 from . import reference as R
@@ -150,6 +151,53 @@ def is_valid_jp_wareki_date(column: str | Column, lang: str = "ja", show_value: 
         lang,
         "is_not_valid_jp_wareki_date",
         bind_once=True,
+        show_value=show_value,
+    )
+
+
+# --- character checks (half-width kana, platform-dependent characters, characters a charset cannot encode) --
+
+
+@register_rule("row")
+def has_no_jp_halfwidth_kana(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
+    """Checks that the value contains no half-width katakana (ｱｲｳ, U+FF61-U+FF9F)."""
+    return _problem_condition(
+        column, E.halfwidth_kana_problem, "halfwidth_kana", lang, "has_jp_halfwidth_kana",
+        cases_expr=E.halfwidth_kana_cases, show_value=show_value,
+    )  # fmt: skip
+
+
+@register_rule("row")
+def has_no_jp_platform_dependent_chars(column: str | Column, lang: str = "ja", show_value: bool = True) -> Column:
+    """Checks that the value contains no 機種依存文字 (platform-dependent characters).
+
+    A character counts as platform-dependent when ``cp932`` (Windows' Shift_JIS) can encode it but ``shift_jis``
+    (JIS X 0208) cannot: NEC special characters (①, ㈱, ㌔ ...) and IBM extension kanji (髙, 﨑 ...).
+    """
+    return _problem_condition(
+        column, E.platform_dependent_problem, "platform_dependent", lang, "has_jp_platform_dependent_chars",
+        cases_expr=E.platform_dependent_cases, show_value=show_value,
+    )  # fmt: skip
+
+
+@register_rule("row")
+def is_encodable_in_jp_charset(
+    column: str | Column, charset: str = "cp932", lang: str = "ja", show_value: bool = True
+) -> Column:
+    """Checks that every character can be encoded in ``charset`` (``cp932`` by default, or ``shift_jis``).
+
+    ``cp932`` finds what cannot be written to a Windows Shift_JIS file (emoji, 𠮷 and other characters outside the
+    Basic Multilingual Plane, ...).  ``shift_jis`` is the strict JIS X 0208 set and also reports the
+    platform-dependent characters.  The tables are Python's codec tables (see :mod:`jpdq_oga.charsets`).
+    """
+    C.validate_charset(charset)
+    return _problem_condition(
+        column,
+        lambda c: E.unencodable_problem(c, charset),
+        f"encodable_{charset}",
+        lang,
+        f"is_not_encodable_in_jp_charset_{charset}",
+        cases_expr=lambda c: E.unencodable_cases(c, charset),
         show_value=show_value,
     )
 
@@ -386,6 +434,9 @@ CHECK_FUNCTIONS: dict[str, Callable[..., Column | tuple[Column, Callable]]] = {
         is_valid_jp_invoice_number,
         is_valid_jp_local_gov_code,
         is_valid_jp_wareki_date,
+        has_no_jp_halfwidth_kana,
+        has_no_jp_platform_dependent_chars,
+        is_encodable_in_jp_charset,
         is_existing_jp_postal_code,
         is_consistent_jp_postal_code_and_prefecture,
         is_consistent_jp_postal_code_and_city,

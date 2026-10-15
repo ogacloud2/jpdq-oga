@@ -12,6 +12,9 @@ from conftest import string_frame  # noqa: E402
 import jpdq_oga  # noqa: E402
 from jpdq_oga import validators as V  # noqa: E402
 from jpdq_oga.checks import (  # noqa: E402
+    has_no_jp_halfwidth_kana,
+    has_no_jp_platform_dependent_chars,
+    is_encodable_in_jp_charset,
     is_valid_jp_corporate_number,
     is_valid_jp_invoice_number,
     is_valid_jp_local_gov_code,
@@ -169,6 +172,9 @@ def test_get_japan_checks_names_match_the_registry():
         "is_valid_jp_invoice_number",
         "is_valid_jp_local_gov_code",
         "is_valid_jp_wareki_date",
+        "has_no_jp_halfwidth_kana",
+        "has_no_jp_platform_dependent_chars",
+        "is_encodable_in_jp_charset",
         "is_existing_jp_postal_code",
         "is_consistent_jp_postal_code_and_prefecture",
         "is_consistent_jp_postal_code_and_city",
@@ -194,10 +200,75 @@ def test_example_yaml_is_valid_and_runs(spark, engine):
     row_level = {n for n in jpdq_oga.get_japan_checks() if "existing" not in n and "consistent" not in n}
     assert {c["check"]["function"] for c in checks} == row_level
     df = string_frame(spark, ["x"], "corporate_number")
-    for column in ("invoice_registration_number", "municipality_code", "contract_date"):
+    for column in ("invoice_registration_number", "municipality_code", "contract_date", "customer_name"):
         df = df.join(string_frame(spark, ["x"], column), "i")
     out = engine.apply_checks_by_metadata(df, checks, custom_check_functions=jpdq_oga.get_japan_checks())
     assert len(messages_by_row(out)[0]) == 4
+
+
+def test_character_checks_messages_and_scope(spark, engine):
+    df = string_frame(spark, ["東京都", "ｱｲｳ", "山田①", "😀", None])
+    checks = [
+        rule("has_no_jp_halfwidth_kana"),
+        rule("has_no_jp_platform_dependent_chars"),
+        rule("is_encodable_in_jp_charset"),
+    ]
+    out = engine.apply_checks_by_metadata(df, checks, custom_check_functions=jpdq_oga.get_japan_checks())
+    msgs = messages_by_row(out)
+    assert msgs[0] == [] and msgs[4] == []  # clean text and NULL
+    assert msgs[1] == ["半角カナが含まれています。全角カナにしてください（入力値: ｱｲｳ）"]
+    assert msgs[2] == ["機種依存文字（丸数字・㈱・IBM拡張漢字の髙や﨑など）が含まれています（入力値: 山田①）"]
+    assert msgs[3] == ["cp932（Windows の Shift_JIS）に変換できない文字が含まれています（入力値: 😀）"]
+
+
+def test_shift_jis_charset_also_reports_platform_dependent_characters(spark, engine):
+    df = string_frame(spark, ["山田①", "東京都", "😀"])
+    out = engine.apply_checks_by_metadata(
+        df,
+        [rule("is_encodable_in_jp_charset", charset="shift_jis", lang="en")],
+        custom_check_functions=jpdq_oga.get_japan_checks(),
+    )
+    msgs = messages_by_row(out)
+    assert msgs[0] and "Shift_JIS" in msgs[0][0] and "山田①" in msgs[0][0]
+    assert msgs[1] == []
+    assert msgs[2]
+
+
+def test_character_checks_unsupported_charset_and_language_are_rejected():
+    with pytest.raises(ValueError, match="unsupported charset"):
+        is_encodable_in_jp_charset("v", charset="utf-8")
+    with pytest.raises(ValueError, match="unsupported language"):
+        has_no_jp_halfwidth_kana("v", lang="fr")
+
+
+def test_character_checks_can_hide_the_value(spark, engine):
+    df = string_frame(spark, ["ｱｲｳ"])
+    out = engine.apply_checks_by_metadata(
+        df,
+        [rule("has_no_jp_halfwidth_kana", show_value=False)],
+        custom_check_functions=jpdq_oga.get_japan_checks(),
+    )
+    assert messages_by_row(out)[0] == ["半角カナが含まれています。全角カナにしてください（入力値: ***）"]
+
+
+def test_charset_profile_counts_rows_once_per_category(spark):
+    from conftest import string_frame as frame
+    from pyspark.sql import functions as F
+
+    base = frame(spark, ["東京", "ｱｲｳ", "ｱｲｳ①", "😀", None, ""], "a")
+    df = base.join(frame(spark, ["x", None, None, None, None, None], "b"), "i")
+    out = {r["column"]: r for r in jpdq_oga.charset_profile(df, ["a", "b"]).collect()}
+    a, b = out["a"], out["b"]
+    assert a["non_null_rows"] == 5  # NULL is not counted
+    assert a["halfwidth_kana_rows"] == 2  # ｱｲｳ and ｱｲｳ①
+    assert a["platform_dependent_rows"] == 1  # ｱｲｳ①
+    assert a["unencodable_rows"] == 1  # 😀
+    assert a["any_rows"] == 3
+    assert a["halfwidth_kana_rate"] == pytest.approx(2 / 5) and a["any_rate"] == pytest.approx(3 / 5)
+    assert b["non_null_rows"] == 1 and b["any_rows"] == 0 and b["any_rate"] == 0
+    only_nulls = frame(spark, [None, None], "c").select(F.col("c"))
+    empty = jpdq_oga.charset_profile(only_nulls, ["c"]).collect()[0]
+    assert empty["non_null_rows"] == 0 and empty["any_rate"] is None  # no non-null row: no rate
 
 
 # --- Spark-native guarantee ----------------------------------------------------------------------
@@ -218,7 +289,15 @@ def test_detector_notices_a_python_udf(spark):
 
 @pytest.mark.parametrize(
     "check",
-    [is_valid_jp_corporate_number, is_valid_jp_invoice_number, is_valid_jp_local_gov_code, is_valid_jp_wareki_date],
+    [
+        is_valid_jp_corporate_number,
+        is_valid_jp_invoice_number,
+        is_valid_jp_local_gov_code,
+        is_valid_jp_wareki_date,
+        has_no_jp_halfwidth_kana,
+        has_no_jp_platform_dependent_chars,
+        is_encodable_in_jp_charset,
+    ],
 )
 @pytest.mark.parametrize("lang", ["ja", "en"])
 def test_checks_run_without_python_udfs(spark, engine, check, lang):

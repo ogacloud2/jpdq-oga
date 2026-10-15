@@ -30,6 +30,16 @@ def get_japan_checks() -> dict[str, Callable[..., Any]]:
     return dict(CHECK_FUNCTIONS)
 
 
+def charset_profile(df: Any, columns: Any, charset: str = "cp932") -> Any:
+    """Per column: rows (and share) holding half-width kana / platform-dependent / unencodable characters.
+
+    ``columns`` is a list of column names; ``charset`` is ``cp932`` or ``shift_jis`` (imports PySpark on first use).
+    """
+    from .profile import charset_profile as _charset_profile
+
+    return _charset_profile(df, columns, charset)
+
+
 def selfcheck(spark: Any = None, *, quiet: bool = False) -> bool:
     """Print the environment (Spark, DQX, ANSI mode) and run every check on known values; ``True`` when all pass.
 
@@ -42,6 +52,7 @@ def selfcheck(spark: Any = None, *, quiet: bool = False) -> bool:
 
 __all__ = [
     "__version__",
+    "charset_profile",
     "corporate_number_check_digit",
     "get_japan_checks",
     "selfcheck",

@@ -40,6 +40,9 @@ DQX の YAML から1行で呼べるようにします。
 | `is_consistent_jp_postal_code_and_city` | 郵便番号と市区町村の整合（複数の市区町村にまたがる番号に対応） | 同上 |
 | `is_existing_jp_local_gov_code` | 地方公共団体コードが指定時点で実在するか（合併等で廃止されたコードの検出） | [総務省](https://www.soumu.go.jp/denshijiti/code.html) |
 | `is_valid_jp_wareki_date` | 和暦日付が実在し、元号の期間内か。元年・漢数字・全角・略号（R6.4.1）に対応 | [国立天文台](https://eco.mtk.nao.ac.jp/koyomi/wiki/CEF2BBCB2FB8B5B9E6.html)、[内閣府](https://www.cao.go.jp/others/soumu/gengou/) |
+| `has_no_jp_halfwidth_kana` | 半角カナ（ｱｲｳ、U+FF61〜FF9F）を含まないか | [Unicode](https://www.unicode.org/charts/PDF/UFF00.pdf)（Halfwidth and Fullwidth Forms） |
+| `has_no_jp_platform_dependent_chars` | 機種依存文字（NEC 特殊文字の①㈱㌔、IBM 拡張漢字の髙﨑など）を含まないか。**cp932 で変換できて shift_jis（JIS X 0208）で変換できない文字**と定義 | Python の `cp932` / `shift_jis` の変換表（[docs/sources.md](docs/sources.md)） |
+| `is_encodable_in_jp_charset` | すべての文字が `cp932`（既定）または `shift_jis` に変換できるか（絵文字・𠮷など、BMP 外の文字を検出） | 同上 |
 
 ### 正規表現では通ってしまうが、検出するもの
 
@@ -141,6 +144,41 @@ is_valid_wareki("令和元年4月30日")  # False（令和は5月1日から）
 Spark の列式は `jpdq_oga.expressions`（`corporate_number_problem` など。違反理由コード
 `format` / `check_digit` / `prefecture` / `not_exist` / `era_boundary` / `pre_gregorian` または `NULL` を返す）。
 
+### 文字種のチェックと混入率
+
+Shift_JIS のファイルへ出力する、帳票や旧システムへ連携する、といったデータで、**半角カナ・機種依存文字・文字コードに変換できない文字**を
+見つけます。いずれも、元の値を直さず、検出するだけです。
+
+```yaml
+- criticality: warn
+  check:
+    function: has_no_jp_halfwidth_kana
+    arguments: {column: customer_name}
+- criticality: warn
+  check:
+    function: has_no_jp_platform_dependent_chars
+    arguments: {column: customer_name}
+- criticality: error
+  check:
+    function: is_encodable_in_jp_charset
+    arguments: {column: customer_name, charset: cp932, show_value: false}   # または shift_jis
+```
+
+| 文字の例 | 半角カナ | 機種依存文字 | cp932 に変換できない | shift_jis に変換できない |
+| --- | :---: | :---: | :---: | :---: |
+| `東京都`、`ー`、`〜` | — | — | — | — |
+| `ｱｲｳ` | **検出** | — | — | — |
+| `①`、`㈱`、`髙`、`﨑`、`～`（全角チルダ U+FF5E） | — | **検出** | — | **検出** |
+| `😀`、`𠮷` | — | — | **検出** | **検出** |
+
+違反した**行の割合**は、列ごとの集計で確認できます（行は 1 回だけ数えます。率は NULL を除いた行に対する割合です）。
+
+```python
+import jpdq_oga
+
+jpdq_oga.charset_profile(df, ["customer_name", "address"]).show()
+# column | non_null_rows | halfwidth_kana_rows | halfwidth_kana_rate | platform_dependent_rows | ... | any_rate
+```
 ## ベンチマーク
 
 GitHub Actions（2 vCPU、`local[*]`）で 1,000万行の合成データを処理した時間です。詳細・環境・限界は
@@ -271,6 +309,13 @@ Free Edition で確認できるのは、サンプルでの動作です。業務�
 - 数値型の列（`int` の団体コードなど）にも指定できますが、先頭の `0` は数値では保持されないため、
   `010006` は `10006` となり形式違反になります。文字列型の列で指定してください。
 
+- **文字種のチェックは、Python の `cp932` / `shift_jis` の変換表**に基づきます（BMP の全文字について、Spark の判定と
+  一致することを、テストで確認しています）。実際のシステム（Windows のベストフィット変換、メインフレームの独自拡張など）とは、
+  扱いが異なることがあります。**判定は、対象システムの仕様で確認してください。**
+- `cp932` では、円記号 `¥`（U+00A5）と上線 `‾`（U+203E）は「変換できない」と判定します（`shift_jis` では変換できます）。
+- 半角カナは、`cp932` でも `shift_jis` でも変換できるため、`is_encodable_in_jp_charset` では違反にしません
+  （`has_no_jp_halfwidth_kana` で検出します）。
+- 全文字種の判定は、文字列に対するものです。数値型や日付型の列は、文字列に変換してから判定します。
 ## 動作確認の範囲
 
 | 環境 | 状況 |
@@ -299,7 +344,8 @@ jpdq_oga.selfcheck()  # すべて期待どおりなら True
 | C | 和暦日付の実在性（元号境界、元年表記、漢数字・全角、閏年、明治6年以前の扱い） | **実装済み** |
 | B | 参照データ（郵便番号の実在性・都道府県/市区町村との整合、地方公共団体コードの実在性）、`as_of` 指定、取得 CLI | **実装済み** |
 | — | ベンチマーク（1,000万行、pandas UDF との比較） | **計測済み**（[BENCHMARK.md](BENCHMARK.md)） |
-| v0.2 | Shift_JIS に戻せない文字・半角カナ・機種依存文字の混入率、Great Expectations アダプタ | 設計のみ |
+| — | 文字種（半角カナ・機種依存文字・文字コードに変換できない文字）のチェックと混入率 | **実装済み** |
+| v0.2 | Great Expectations アダプタ | 設計のみ |
 
 ## 開発
 

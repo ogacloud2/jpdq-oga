@@ -25,6 +25,10 @@ _CASES: list[tuple[str, str, str, str | None]] = [
     ("和暦: 令和元年5月1日（実在）", "wareki_problem", "令和元年5月1日", None),
     ("和暦: 令和元年4月30日（元号の期間外）", "wareki_problem", "令和元年4月30日", "era_boundary"),
     ("和暦: 令和6年4月31日（存在しない日）", "wareki_problem", "令和6年4月31日", "not_exist"),
+    ("文字種: 通常の漢字・かな", "unencodable_problem", "東京都千代田区", None),
+    ("文字種: 半角カナ", "halfwidth_kana_problem", "ｱｲｳ", "halfwidth_kana"),
+    ("文字種: 機種依存文字（丸数字）", "platform_dependent_problem", "①", "platform_dependent"),
+    ("文字種: cp932 に変換できない文字（絵文字）", "unencodable_problem", "😀", "unencodable"),
 ]
 
 
