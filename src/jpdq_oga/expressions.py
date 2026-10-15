@@ -44,32 +44,58 @@ def _corporate_check_ok(s13: Column) -> Column:
     return _digit(s13, 1) == (F.lit(9) - (total % 9))
 
 
+Case = tuple[Column, str]  # (condition, reason code): the first condition that holds names the problem
+
+
+def _case_when(cases: list[Case]) -> Column:
+    """``CASE WHEN c1 THEN code1 WHEN c2 THEN code2 END`` (``NULL`` when none holds)."""
+    expr = F.when(cases[0][0], F.lit(cases[0][1]))
+    for condition, code in cases[1:]:
+        expr = expr.when(condition, F.lit(code))
+    return expr
+
+
+def corporate_number_cases(column: ColumnLike) -> list[Case]:
+    """The ordered ``(condition, reason code)`` pairs behind :func:`corporate_number_problem`.
+
+    The DQX checks turn these straight into messages, so that each condition is evaluated once per row
+    (going through a reason-code column made Spark evaluate the whole check about twenty times).
+    """
+    s = _c(column).cast("string")
+    return [(~s.rlike(r"\A[0-9]{13}\z"), FORMAT), (~_corporate_check_ok(s), CHECK_DIGIT)]
+
+
 def corporate_number_problem(column: ColumnLike) -> Column:
     """``format`` / ``check_digit`` / ``NULL`` for a 13-digit 法人番号."""
+    return _case_when(corporate_number_cases(column))
+
+
+def invoice_number_cases(column: ColumnLike) -> list[Case]:
     s = _c(column).cast("string")
-    return F.when(~s.rlike(r"\A[0-9]{13}\z"), F.lit(FORMAT)).when(~_corporate_check_ok(s), F.lit(CHECK_DIGIT))
+    return [(~s.rlike(r"\AT[0-9]{13}\z"), FORMAT), (~_corporate_check_ok(F.substring(s, 2, 13)), CHECK_DIGIT)]
 
 
 def invoice_number_problem(column: ColumnLike) -> Column:
     """``format`` / ``check_digit`` / ``NULL`` for ``T`` + 法人番号 (corporate registration numbers)."""
-    s = _c(column).cast("string")
-    return F.when(~s.rlike(r"\AT[0-9]{13}\z"), F.lit(FORMAT)).when(
-        ~_corporate_check_ok(F.substring(s, 2, 13)), F.lit(CHECK_DIGIT)
-    )
+    return _case_when(invoice_number_cases(column))
 
 
-def local_gov_code_problem(column: ColumnLike) -> Column:
-    """``format`` / ``prefecture`` / ``check_digit`` / ``NULL`` for a 6-digit 全国地方公共団体コード."""
+def local_gov_code_cases(column: ColumnLike) -> list[Case]:
     s = _c(column).cast("string")
     total = F.lit(0)
     for position, weight in zip(range(1, 6), (6, 5, 4, 3, 2), strict=True):
         total = total + _digit(s, position) * weight
     expected = (F.lit(11) - (total % 11)) % 10
-    return (
-        F.when(~s.rlike(r"\A[0-9]{6}\z"), F.lit(FORMAT))
-        .when(~F.substring(s, 1, 2).cast("int").between(1, 47), F.lit(PREFECTURE))
-        .when(_digit(s, 6) != expected, F.lit(CHECK_DIGIT))
-    )
+    return [
+        (~s.rlike(r"\A[0-9]{6}\z"), FORMAT),
+        (~F.substring(s, 1, 2).cast("int").between(1, 47), PREFECTURE),
+        (_digit(s, 6) != expected, CHECK_DIGIT),
+    ]
+
+
+def local_gov_code_problem(column: ColumnLike) -> Column:
+    """``format`` / ``prefecture`` / ``check_digit`` / ``NULL`` for a 6-digit 全国地方公共団体コード."""
+    return _case_when(local_gov_code_cases(column))
 
 
 # --- 和暦 --------------------------------------------------------------------------------------------

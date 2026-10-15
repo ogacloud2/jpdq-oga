@@ -38,11 +38,18 @@ def _problem_condition(
     kind: str,
     lang: str,
     alias_suffix: str,
+    bind_once: bool = False,
+    cases_expr: Callable[[Column], list[tuple[Column, str]]] | None = None,
 ) -> Column:
-    """``make_condition`` that fails when ``problem_expr`` yields a reason code."""
+    """``make_condition`` that fails when ``problem_expr`` yields a reason code.
+
+    ``bind_once`` evaluates the reason code a single time per use of the result column (see below); it is
+    only worth it for expensive reason codes, because Spark runs higher-order functions interpreted
+    instead of generating code for them, which made cheap expressions about 9x slower.
+    """
     M.validate_language(lang)
     col_str_norm, _, col_expr = get_normalized_column_and_expr(column)
-    templates = M.TEMPLATES[kind][lang].items()
+    templates = list(M.TEMPLATES[kind][lang].items())
 
     def message_of(problem: Column) -> Column:
         """The message for a reason code; NULL (no branch matches) when there is no violation."""
@@ -55,11 +62,26 @@ def _problem_condition(
             message = message.when(condition, text)
         return message
 
-    # The reason code can be expensive (和暦 parses the string).  Spark has no ``let``, so bind it through
-    # a one-element array and a lambda: it is then evaluated once per use of the result column instead of
-    # once for the condition plus once per message branch.  ``condition=True`` because the message is
-    # already NULL when there is no violation.
-    message = F.transform(F.array(problem_expr(col_expr)), message_of)[0]
+    if cases_expr is not None:
+        # cheap checks: CASE WHEN <condition> THEN <message>; every condition is evaluated at most once
+        by_code = dict(templates)
+        branches = [
+            (cond, F.concat(F.lit(by_code[code][0]), col_expr.cast("string"), F.lit(by_code[code][1])))
+            for cond, code in cases_expr(col_expr)
+        ]
+        direct = F.when(*branches[0])
+        for condition, text in branches[1:]:
+            direct = direct.when(condition, text)
+        return make_condition(F.lit(True), direct, f"{col_str_norm}_{alias_suffix}")
+    problem = problem_expr(col_expr)
+    if not bind_once:
+        # cheap reason codes: plain expressions are code-generated and their repeats are eliminated
+        return make_condition(problem.isNotNull(), message_of(problem), f"{col_str_norm}_{alias_suffix}")
+    # Expensive reason code (和暦 parses the string).  Spark has no ``let``, so bind it through a
+    # one-element array and a lambda: it is evaluated once per use of the result column instead of once for
+    # the condition plus once per message branch.  ``condition=True`` because the message is already NULL
+    # when there is no violation.
+    message = F.transform(F.array(problem), message_of)[0]
     return make_condition(F.lit(True), message, f"{col_str_norm}_{alias_suffix}")
 
 
@@ -67,24 +89,27 @@ def _problem_condition(
 def is_valid_jp_corporate_number(column: str | Column, lang: str = "ja") -> Column:
     """Checks for a valid 13-digit 法人番号 (corporate number) including its check digit."""
     return _problem_condition(
-        column, E.corporate_number_problem, "corporate_number", lang, "is_not_valid_jp_corporate_number"
-    )
+        column, E.corporate_number_problem, "corporate_number", lang, "is_not_valid_jp_corporate_number",
+        cases_expr=E.corporate_number_cases,
+    )  # fmt: skip
 
 
 @register_rule("row")
 def is_valid_jp_invoice_number(column: str | Column, lang: str = "ja") -> Column:
     """Checks for ``T`` + a valid 法人番号 (インボイス登録番号 of a corporation)."""
     return _problem_condition(
-        column, E.invoice_number_problem, "invoice_number", lang, "is_not_valid_jp_invoice_number"
-    )
+        column, E.invoice_number_problem, "invoice_number", lang, "is_not_valid_jp_invoice_number",
+        cases_expr=E.invoice_number_cases,
+    )  # fmt: skip
 
 
 @register_rule("row")
 def is_valid_jp_local_gov_code(column: str | Column, lang: str = "ja") -> Column:
     """Checks for a valid 6-digit 全国地方公共団体コード (prefecture 01-47 and check digit)."""
     return _problem_condition(
-        column, E.local_gov_code_problem, "local_gov_code", lang, "is_not_valid_jp_local_gov_code"
-    )
+        column, E.local_gov_code_problem, "local_gov_code", lang, "is_not_valid_jp_local_gov_code",
+        cases_expr=E.local_gov_code_cases,
+    )  # fmt: skip
 
 
 @register_rule("row")
@@ -95,7 +120,9 @@ def is_valid_jp_wareki_date(column: str | Column, lang: str = "ja") -> Column:
     令和元年4月30日 is still 平成) and 明治5年以前 (old calendar, outside the supported range).
     Accepts 元年, kanji / fullwidth numerals and the abbreviations R/H/S/T/M.
     """
-    return _problem_condition(column, E.wareki_problem, "wareki_date", lang, "is_not_valid_jp_wareki_date")
+    return _problem_condition(
+        column, E.wareki_problem, "wareki_date", lang, "is_not_valid_jp_wareki_date", bind_once=True
+    )
 
 
 # --- reference-data checks (dataset level: broadcast join against a time-aware reference table) -------
